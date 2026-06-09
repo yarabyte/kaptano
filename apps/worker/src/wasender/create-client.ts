@@ -2,8 +2,8 @@ import { createRequire } from "node:module";
 import type { RetryConfig, Wasender } from "wasenderapi";
 
 // Le build ESM du SDK (v0.4) a des paramètres dans le désordre — on force le CJS.
-const require = createRequire(__filename);
-const { createWasender } = require("wasenderapi") as {
+const cjsRequire = createRequire(__filename);
+const { createWasender } = cjsRequire("wasenderapi") as {
   createWasender: (
     apiKey?: string,
     personalAccessToken?: string,

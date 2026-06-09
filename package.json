@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "turbo dev",
     "dev:clean": "lsof -ti:3000,3001,8080 | xargs kill -9 2>/dev/null; rm -rf apps/web/.next && turbo dev",
-    "build": "turbo build",
+    "build": "pnpm db:generate && pnpm --filter @kaptano/web build",
+    "build:all": "turbo build",
     "lint": "turbo lint",
     "db:generate": "pnpm --filter @kaptano/db generate",
     "db:migrate": "pnpm --filter @kaptano/db migrate",

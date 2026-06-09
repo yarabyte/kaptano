@@ -59,7 +59,7 @@ export function TenantsManager({ tenants }: { tenants: TenantRow[] }) {
     });
   }, [tenants, search, planFilter]);
 
-  const planOptions = ["ALL", ...new Set(tenants.map((t) => t.planTier))];
+  const planOptions = ["ALL", ...Array.from(new Set(tenants.map((t) => t.planTier)))];
 
   return (
     <div className="space-y-4">
