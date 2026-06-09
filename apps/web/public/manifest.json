@@ -1,0 +1,29 @@
+{
+  "name": "Kaptano",
+  "short_name": "Kaptano",
+  "description": "Capture de leads en salon professionnel, foire et exposition",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1677f0",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "150x150",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

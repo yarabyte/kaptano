@@ -1,0 +1,30 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DIRECT_URL=${DIRECT_URL}
+      - REDIS_URL=redis://redis:6379
+      - WORKER_PORT=8080
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - WASENDER_API_BASE=${WASENDER_API_BASE}
+      - WASENDER_ACCOUNT_TOKEN=${WASENDER_ACCOUNT_TOKEN}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis_data:

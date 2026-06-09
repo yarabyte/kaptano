@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  EXHIBITOR_ADMIN
+  AGENT
+}
+
+enum LeadSource {
+  QR_SELF
+  AGENT
+}
+
+enum SessionStatus {
+  PENDING
+  CONNECTED
+  DISCONNECTED
+  EXPIRED
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  GROWTH
+  SCALE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum WhatsappMessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  POLL
+}
+
+enum DispatchBatchStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Tenant {
+  id                   String             @id @default(cuid())
+  name                 String
+  slug                 String             @unique
+  status               String             @default("active")
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  planTier             PlanTier           @default(FREE)
+  subscriptionStatus   SubscriptionStatus @default(TRIALING)
+  subscriptionExpiresAt DateTime?
+  dailySendTime         String              @default("18:00")
+  timezone              String              @default("Africa/Douala")
+  whatsappMessageType   WhatsappMessageType @default(TEXT)
+  whatsappMessageConfig Json?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  users           User[]
+  events          Event[]
+  stands          Stand[]
+  catalogs        Catalog[]
+  leads           Lead[]
+  whatsappSession WhatsappSession?
+  messageJobs     MessageJob[]
+  dispatchBatches DispatchBatch[]
+  usageRecords    UsageRecord[]
+  payments        Payment[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  supabaseUserId String   @unique
+  email          String   @unique
+  fullName       String?
+  role           UserRole @default(AGENT)
+  tenantId       String?
+  tenant         Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  capturedLeads Lead[] @relation("CapturedBy")
+
+  @@index([tenantId])
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  location  String?
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+
+  stands Stand[]
+
+  @@index([tenantId])
+}
+
+model Stand {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  name      String
+  qrToken   String   @unique @default(cuid())
+  catalogId String?
+  catalog   Catalog? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  leads Lead[]
+
+  @@index([tenantId])
+}
+
+model Catalog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  storagePath String
+  publicUrl   String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  stands Stand[]
+
+  @@index([tenantId])
+}
+
+model Lead {
+  id             String     @id @default(cuid())
+  tenantId       String
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  standId        String?
+  stand          Stand?     @relation(fields: [standId], references: [id], onDelete: SetNull)
+  fullName       String
+  whatsappNumber String
+  email          String?
+  company        String?
+  interest       String?
+  source         LeadSource
+  capturedById   String?
+  capturedBy     User?      @relation("CapturedBy", fields: [capturedById], references: [id], onDelete: SetNull)
+  optInConsent   Boolean    @default(false)
+  consentAt      DateTime?
+  clientUuid     String?
+  capturedAt     DateTime   @default(now())
+
+  messageJobs MessageJob[]
+
+  @@unique([tenantId, whatsappNumber])
+  @@unique([tenantId, clientUuid])
+  @@index([tenantId, capturedAt])
+}
+
+model WhatsappSession {
+  id                String        @id @default(cuid())
+  tenantId          String        @unique
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  wasenderSessionId String?
+  apiKeyEncrypted   String?
+  phoneNumber       String?
+  status            SessionStatus @default(PENDING)
+  webhookSecret     String?
+  lastConnectedAt   DateTime?
+  updatedAt         DateTime      @updatedAt
+}
+
+/// Numéro WhatsApp partagé pour les plans Gratuit et Starter (configuré par l'admin plateforme)
+model SharedWhatsappSession {
+  id                String        @id @default("default")
+  wasenderSessionId String?
+  apiKeyEncrypted   String?
+  phoneNumber       String?
+  status            SessionStatus @default(PENDING)
+  webhookSecret     String?
+  lastConnectedAt   DateTime?
+  updatedAt         DateTime      @updatedAt
+}
+
+model DispatchBatch {
+  id          String              @id @default(cuid())
+  tenantId    String
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status      DispatchBatchStatus @default(RUNNING)
+  totalCount  Int
+  filters     Json?
+  startedAt   DateTime            @default(now())
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  messageJobs MessageJob[]
+
+  @@index([tenantId, createdAt])
+}
+
+model MessageJob {
+  id                String         @id @default(cuid())
+  tenantId          String
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId            String
+  lead              Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  dispatchBatchId   String?
+  dispatchBatch     DispatchBatch? @relation(fields: [dispatchBatchId], references: [id], onDelete: SetNull)
+  status            MessageStatus  @default(QUEUED)
+  wasenderMessageId String?
+  scheduledFor      DateTime
+  attempts          Int            @default(0)
+  lastError         String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  catalogClickedAt  DateTime?
+  createdAt         DateTime       @default(now())
+
+  @@unique([leadId])
+  @@index([tenantId, status])
+  @@index([dispatchBatchId])
+  @@index([scheduledFor])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactionId String        @unique
+  planTier      PlanTier
+  amount        Int
+  currency      String        @default("XAF")
+  status        PaymentStatus @default(PENDING)
+  operatorId    String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([tenantId])
+}
+
+model UsageRecord {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  period           String
+  leadsCount       Int      @default(0)
+  reportedToStripe Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, period])
+}
