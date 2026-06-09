@@ -129,13 +129,25 @@ export class WasenderClient {
     }
   }
 
-  async getSessionQr(sessionId: string): Promise<{ qr: string }> {
+  async getSessionQr(sessionId: string): Promise<{ qr: string | null; alreadyConnected?: boolean }> {
     const client = this.getAccountClient();
 
     try {
-      const { response } = await client.getWhatsAppSessionQRCode(
-        Number(sessionId)
+      const { response: connectResponse } = await client.connectWhatsAppSession(
+        Number(sessionId),
+        true
       );
+      const connectData = connectResponse.data;
+
+      if (connectData.status === "CONNECTED") {
+        return { qr: null, alreadyConnected: true };
+      }
+
+      if (connectData.qrCode) {
+        return { qr: connectData.qrCode };
+      }
+
+      const { response } = await client.getWhatsAppSessionQRCode(Number(sessionId));
       return { qr: response.data.qrCode };
     } catch (err) {
       this.handleError(err, { action: "getSessionQr", sessionId });

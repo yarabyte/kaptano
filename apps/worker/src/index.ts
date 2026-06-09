@@ -73,6 +73,7 @@ app.post("/whatsapp/sessions/:tenantId", async (req, res) => {
       tenant.name
     );
     const qrData = await wasender.getSessionQr(sessionData.id);
+    const initialStatus = qrData.alreadyConnected ? "CONNECTED" : "PENDING";
 
     const session = await prisma.whatsappSession.upsert({
       where: { tenantId },
@@ -82,20 +83,23 @@ app.post("/whatsapp/sessions/:tenantId", async (req, res) => {
         apiKeyEncrypted: encrypt(sessionData.api_key),
         webhookSecret: sessionData.webhook_secret,
         phoneNumber: sessionData.phone_number ?? phoneNumber,
-        status: "PENDING",
+        status: initialStatus,
+        lastConnectedAt: qrData.alreadyConnected ? new Date() : undefined,
       },
       update: {
         wasenderSessionId: sessionData.id,
         apiKeyEncrypted: encrypt(sessionData.api_key),
         webhookSecret: sessionData.webhook_secret,
         phoneNumber: sessionData.phone_number ?? phoneNumber,
-        status: "PENDING",
+        status: initialStatus,
+        lastConnectedAt: qrData.alreadyConnected ? new Date() : undefined,
       },
     });
 
     res.json({
       session: { id: session.id, status: session.status },
       qrCode: qrData.qr,
+      alreadyConnected: qrData.alreadyConnected ?? false,
       webhookUrl: workerWebhookUrl,
     });
   } catch (err) {

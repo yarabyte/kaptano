@@ -68,6 +68,10 @@ export function SharedWhatsappCard() {
 
       if (data.qrCode) setQrCode(data.qrCode);
       if (data.session) setSession(data.session);
+      if ((data as { alreadyConnected?: boolean }).alreadyConnected) {
+        setQrCode(null);
+        setError(null);
+      }
       await load();
     } catch {
       setError("Impossible de contacter le serveur. Réessayez dans quelques instants.");

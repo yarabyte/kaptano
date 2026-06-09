@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import { WasenderAPIError } from "wasenderapi";
 import { createAccountWasenderClient } from "./create-client";
 
@@ -10,7 +11,7 @@ const WEBHOOK_EVENTS = [
   "qrcode.updated",
 ];
 
-type SessionCreateResult = {
+export type SessionCreateResult = {
   id: string;
   api_key: string;
   webhook_secret: string;
@@ -20,6 +21,12 @@ type SessionCreateResult = {
 type SessionWithSecrets = {
   api_key?: string;
   webhook_secret?: string;
+};
+
+export type ConnectQrResult = {
+  qrCode: string | null;
+  status: string;
+  alreadyConnected: boolean;
 };
 
 function getAccountClient() {
@@ -44,6 +51,13 @@ function handleError(err: unknown): never {
     throw new Error(`Wasender: ${err.apiMessage}`);
   }
   throw err;
+}
+
+async function toQrImage(qr: string): Promise<string> {
+  if (qr.startsWith("data:") || qr.startsWith("http://") || qr.startsWith("https://")) {
+    return qr;
+  }
+  return QRCode.toDataURL(qr, { width: 280, margin: 2 });
 }
 
 export async function createSharedWhatsappSession(
@@ -84,12 +98,37 @@ export async function createSharedWhatsappSession(
   }
 }
 
-export async function getSharedSessionQr(sessionId: string): Promise<string> {
+export async function connectAndGetSharedSessionQr(
+  sessionId: string
+): Promise<ConnectQrResult> {
   const client = getAccountClient();
 
   try {
+    const { response: connectResponse } = await client.connectWhatsAppSession(
+      Number(sessionId),
+      true
+    );
+    const connectData = connectResponse.data;
+    const status = String(connectData.status ?? "PENDING");
+
+    if (status.toUpperCase() === "CONNECTED") {
+      return { qrCode: null, status, alreadyConnected: true };
+    }
+
+    if (connectData.qrCode) {
+      return {
+        qrCode: await toQrImage(connectData.qrCode),
+        status,
+        alreadyConnected: false,
+      };
+    }
+
     const { response } = await client.getWhatsAppSessionQRCode(Number(sessionId));
-    return response.data.qrCode;
+    return {
+      qrCode: await toQrImage(response.data.qrCode),
+      status,
+      alreadyConnected: false,
+    };
   } catch (err) {
     handleError(err);
   }

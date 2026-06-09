@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import type { SessionStatus } from "@kaptano/db";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
 import { prisma } from "@/lib/prisma";
 import {
+  connectAndGetSharedSessionQr,
   createSharedWhatsappSession,
-  getSharedSessionQr,
   getSharedWebhookUrl,
 } from "@/lib/wasender/shared-session";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
@@ -38,30 +39,51 @@ export async function POST(request: Request) {
     );
   }
 
+  const phoneNumber = body.phoneNumber.trim();
+
   try {
     const webhookUrl = getSharedWebhookUrl();
-    const sessionData = await createSharedWhatsappSession(
-      webhookUrl,
-      body.phoneNumber.trim()
-    );
-    const qrCode = await getSharedSessionQr(sessionData.id);
+    const existing = await prisma.sharedWhatsappSession.findUnique({
+      where: { id: SHARED_WHATSAPP_SESSION_ID },
+    });
+
+    let wasenderSessionId = existing?.wasenderSessionId ?? null;
+    let createResult: Awaited<ReturnType<typeof createSharedWhatsappSession>> | null =
+      null;
+
+    if (!wasenderSessionId) {
+      createResult = await createSharedWhatsappSession(webhookUrl, phoneNumber);
+      wasenderSessionId = createResult.id;
+    }
+
+    const connection = await connectAndGetSharedSessionQr(wasenderSessionId);
+
+    const dbStatus: SessionStatus = connection.alreadyConnected
+      ? "CONNECTED"
+      : "PENDING";
 
     const session = await prisma.sharedWhatsappSession.upsert({
       where: { id: SHARED_WHATSAPP_SESSION_ID },
       create: {
         id: SHARED_WHATSAPP_SESSION_ID,
-        wasenderSessionId: sessionData.id,
-        apiKeyEncrypted: encrypt(sessionData.api_key),
-        webhookSecret: sessionData.webhook_secret,
-        phoneNumber: sessionData.phone_number ?? body.phoneNumber.trim(),
-        status: "PENDING",
+        wasenderSessionId,
+        apiKeyEncrypted: encrypt(createResult!.api_key),
+        webhookSecret: createResult!.webhook_secret,
+        phoneNumber: createResult!.phone_number ?? phoneNumber,
+        status: dbStatus,
+        lastConnectedAt: connection.alreadyConnected ? new Date() : undefined,
       },
       update: {
-        wasenderSessionId: sessionData.id,
-        apiKeyEncrypted: encrypt(sessionData.api_key),
-        webhookSecret: sessionData.webhook_secret,
-        phoneNumber: sessionData.phone_number ?? body.phoneNumber.trim(),
-        status: "PENDING",
+        ...(createResult
+          ? {
+              wasenderSessionId,
+              apiKeyEncrypted: encrypt(createResult.api_key),
+              webhookSecret: createResult.webhook_secret,
+              phoneNumber: createResult.phone_number ?? phoneNumber,
+            }
+          : { phoneNumber }),
+        status: dbStatus,
+        lastConnectedAt: connection.alreadyConnected ? new Date() : undefined,
       },
     });
 
@@ -71,7 +93,8 @@ export async function POST(request: Request) {
         status: session.status,
         phoneNumber: session.phoneNumber,
       },
-      qrCode,
+      qrCode: connection.qrCode,
+      alreadyConnected: connection.alreadyConnected,
       webhookUrl,
     });
   } catch (err) {
