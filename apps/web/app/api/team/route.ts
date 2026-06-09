@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { effectivePlanTier, usesSharedWhatsapp } from "@kaptano/shared";
 import { requireTenantContext, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { inviteAgentSchema } from "@kaptano/shared";
@@ -11,20 +12,48 @@ export async function GET() {
   const ctx = await requireTenantContext();
   await requireRole(["EXHIBITOR_ADMIN"]);
 
-  const users = await prisma.user.findMany({
-    where: { tenantId: ctx.tenantId },
-    select: {
-      id: true,
-      email: true,
-      fullName: true,
-      role: true,
-      active: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [users, tenant] = await Promise.all([
+    prisma.user.findMany({
+      where: { tenantId: ctx.tenantId },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        active: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.tenant.findUniqueOrThrow({
+      where: { id: ctx.tenantId },
+      select: {
+        name: true,
+        planTier: true,
+        subscriptionStatus: true,
+        subscriptionExpiresAt: true,
+      },
+    }),
+  ]);
 
-  return NextResponse.json({ users });
+  const effectiveTier = effectivePlanTier(
+    tenant.planTier,
+    tenant.subscriptionStatus,
+    tenant.subscriptionExpiresAt
+  );
+
+  const agents = users.filter((u) => u.role === "AGENT");
+
+  return NextResponse.json({
+    users,
+    meta: {
+      tenantName: tenant.name,
+      effectivePlanTier: effectiveTier,
+      usesSharedWhatsapp: usesSharedWhatsapp(effectiveTier),
+      agentCount: agents.length,
+      activeAgentCount: agents.filter((u) => u.active).length,
+    },
+  });
 }
 
 export async function POST(request: Request) {
