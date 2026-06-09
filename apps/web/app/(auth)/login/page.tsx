@@ -13,10 +13,13 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 export default function LoginPage() {
   const router = useRouter();
   const [registered, setRegistered] = useState(false);
+  const [noTenant, setNoTenant] = useState(false);
   const [email, setEmail] = useState("");
 
   useEffect(() => {
-    setRegistered(new URLSearchParams(window.location.search).get("registered") === "1");
+    const params = new URLSearchParams(window.location.search);
+    setRegistered(params.get("registered") === "1");
+    setNoTenant(params.get("error") === "no_tenant");
   }, []);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +84,13 @@ export default function LoginPage() {
                 <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                   Compte créé avec succès. Un email de bienvenue vous a été envoyé
                   (vérifiez aussi les spams). Connectez-vous avec vos identifiants.
+                </p>
+              )}
+
+              {noTenant && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Votre compte n&apos;est pas encore associé à un espace exposant. Contactez le
+                  support.
                 </p>
               )}
 

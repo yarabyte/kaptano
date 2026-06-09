@@ -19,8 +19,12 @@ export default function Error({
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
       <h1 className="font-heading text-2xl font-bold">Une erreur est survenue</h1>
       <p className="max-w-md text-sm text-muted-foreground">
-        Rechargez la page ou retournez à l&apos;accueil. Si le problème persiste,
-        redémarrez le serveur de développement.
+        {error.message ||
+          "Rechargez la page ou retournez à l'accueil."}
+      </p>
+      <p className="max-w-md text-xs text-muted-foreground">
+        En production, vérifiez les variables{" "}
+        <code className="rounded bg-muted px-1">DATABASE_URL</code> et Supabase sur Vercel.
       </p>
       <div className="flex gap-3">
         <Button onClick={reset}>Réessayer</Button>

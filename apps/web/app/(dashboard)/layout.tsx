@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { requireAuth } from "@/lib/auth";
+import { DatabaseUnavailableError, requireAuth } from "@/lib/auth";
+import { DatabaseUnavailable } from "@/components/dashboard/database-unavailable";
 import { prisma } from "@/lib/prisma";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { filterNavForRole } from "@/lib/dashboard-nav";
@@ -13,18 +14,32 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const ctx = await requireAuth();
+  let ctx;
+  try {
+    ctx = await requireAuth();
+  } catch (error) {
+    if (error instanceof DatabaseUnavailableError) {
+      return <DatabaseUnavailable />;
+    }
+    throw error;
+  }
 
   if (ctx.role === "PLATFORM_ADMIN") {
     redirect("/platform");
   }
 
-  const tenant = ctx.tenantId
-    ? await prisma.tenant.findUnique({
+  let tenant: { name: string } | null = null;
+  if (ctx.tenantId) {
+    try {
+      tenant = await prisma.tenant.findUnique({
         where: { id: ctx.tenantId },
         select: { name: true },
-      })
-    : null;
+      });
+    } catch (error) {
+      console.error("[dashboard] Échec lecture tenant:", error);
+      return <DatabaseUnavailable />;
+    }
+  }
 
   const visibleNav = filterNavForRole(ctx.role as UserRole);
 

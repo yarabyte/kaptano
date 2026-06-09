@@ -14,6 +14,13 @@ export class AuthError extends Error {
   }
 }
 
+export class DatabaseUnavailableError extends Error {
+  constructor() {
+    super("Connexion base de données indisponible");
+    this.name = "DatabaseUnavailableError";
+  }
+}
+
 export async function getSessionUser() {
   const supabase = createSupabaseServerClient();
   const {
@@ -22,14 +29,19 @@ export async function getSessionUser() {
 
   if (!user) return null;
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabaseUserId: user.id },
-    include: { tenant: true },
-  });
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { supabaseUserId: user.id },
+      include: { tenant: true },
+    });
 
-  if (!dbUser || !dbUser.active) return null;
+    if (!dbUser || !dbUser.active) return null;
 
-  return dbUser;
+    return dbUser;
+  } catch (error) {
+    console.error("[auth] Échec lecture utilisateur:", error);
+    throw new DatabaseUnavailableError();
+  }
 }
 
 export async function requireAuth(): Promise<TenantContext> {
@@ -39,7 +51,7 @@ export async function requireAuth(): Promise<TenantContext> {
   }
 
   if (user.role !== "PLATFORM_ADMIN" && !user.tenantId) {
-    throw new AuthError("Aucun tenant associé", "NO_TENANT");
+    redirect("/login?error=no_tenant");
   }
 
   return {
