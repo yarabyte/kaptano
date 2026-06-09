@@ -1,0 +1,101 @@
+import { WasenderAPIError } from "wasenderapi";
+import { createAccountWasenderClient } from "./create-client";
+
+const ACCOUNT_TOKEN = process.env.WASENDER_ACCOUNT_TOKEN ?? "";
+
+const WEBHOOK_EVENTS = [
+  "session.status",
+  "message.sent",
+  "messages.update",
+  "qrcode.updated",
+];
+
+type SessionCreateResult = {
+  id: string;
+  api_key: string;
+  webhook_secret: string;
+  phone_number?: string;
+};
+
+type SessionWithSecrets = {
+  api_key?: string;
+  webhook_secret?: string;
+};
+
+function getAccountClient() {
+  if (!ACCOUNT_TOKEN) {
+    throw new Error(
+      "WASENDER_ACCOUNT_TOKEN manquant. Configurez-le sur Vercel (Settings → Environment Variables)."
+    );
+  }
+  return createAccountWasenderClient(ACCOUNT_TOKEN);
+}
+
+function handleError(err: unknown): never {
+  if (err instanceof WasenderAPIError) {
+    if (
+      err.statusCode === 401 &&
+      err.apiMessage.toLowerCase().includes("personal access token")
+    ) {
+      throw new Error(
+        "Token Wasender invalide ou expiré. Régénérez un Personal Access Token sur wasenderapi.com."
+      );
+    }
+    throw new Error(`Wasender: ${err.apiMessage}`);
+  }
+  throw err;
+}
+
+export async function createSharedWhatsappSession(
+  webhookUrl: string,
+  phoneNumber: string
+): Promise<SessionCreateResult> {
+  const client = getAccountClient();
+
+  try {
+    const { response } = await client.createWhatsAppSession({
+      name: "Kaptano — numéro partagé",
+      phone_number: phoneNumber,
+      account_protection: true,
+      log_messages: true,
+      webhook_url: webhookUrl,
+      webhook_enabled: true,
+      webhook_events: WEBHOOK_EVENTS,
+    });
+
+    const data = response.data as typeof response.data & SessionWithSecrets;
+    const apiKey = data.api_key;
+    const webhookSecret = data.webhook_secret;
+
+    if (!apiKey || !webhookSecret) {
+      throw new Error(
+        "Réponse Wasender incomplète (api_key ou webhook_secret manquant)"
+      );
+    }
+
+    return {
+      id: String(data.id),
+      api_key: apiKey,
+      webhook_secret: webhookSecret,
+      phone_number: data.phone_number,
+    };
+  } catch (err) {
+    handleError(err);
+  }
+}
+
+export async function getSharedSessionQr(sessionId: string): Promise<string> {
+  const client = getAccountClient();
+
+  try {
+    const { response } = await client.getWhatsAppSessionQRCode(Number(sessionId));
+    return response.data.qrCode;
+  } catch (err) {
+    handleError(err);
+  }
+}
+
+export function getSharedWebhookUrl(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return `${appUrl.replace(/\/$/, "")}/api/webhooks/wasender/shared`;
+}

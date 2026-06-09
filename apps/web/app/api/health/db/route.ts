@@ -48,17 +48,21 @@ export async function GET() {
       ok: true,
       hasDatabaseUrl: true,
       hasDirectUrl,
+      databaseHost,
       userCount,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
+    const hint = getDatabaseHint(databaseHost, message);
 
     return NextResponse.json(
       {
         ok: false,
         hasDatabaseUrl: true,
         hasDirectUrl,
+        databaseHost,
         error: message,
+        hint,
       },
       { status: 503 }
     );

@@ -47,22 +47,33 @@ export function SharedWhatsappCard() {
   async function connect() {
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/platform/whatsapp-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phoneNumber: phoneNumber.trim() }),
-    });
-    const data = (await res.json()) as { qrCode?: string; error?: string; session?: Session };
-    setLoading(false);
+    setQrCode(null);
 
-    if (!res.ok) {
-      setError(data.error ?? "Erreur lors de la connexion");
-      return;
+    try {
+      const res = await fetch("/api/platform/whatsapp-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: phoneNumber.trim() }),
+      });
+      const data = (await res.json()) as {
+        qrCode?: string;
+        error?: string;
+        session?: Session;
+      };
+
+      if (!res.ok) {
+        setError(data.error ?? "Erreur lors de la connexion");
+        return;
+      }
+
+      if (data.qrCode) setQrCode(data.qrCode);
+      if (data.session) setSession(data.session);
+      await load();
+    } catch {
+      setError("Impossible de contacter le serveur. Réessayez dans quelques instants.");
+    } finally {
+      setLoading(false);
     }
-
-    if (data.qrCode) setQrCode(data.qrCode);
-    if (data.session) setSession(data.session);
-    await load();
   }
 
   return (

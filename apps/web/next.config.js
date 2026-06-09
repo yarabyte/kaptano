@@ -6,7 +6,7 @@ const nextConfig = {
   transpilePackages: ["@kaptano/db", "@kaptano/shared"],
   outputFileTracingRoot: path.join(__dirname, "../../"),
   experimental: {
-    serverComponentsExternalPackages: ["@prisma/client"],
+    serverComponentsExternalPackages: ["@prisma/client", "wasenderapi"],
     outputFileTracingIncludes: {
       "/api/**/*": [
         "node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",

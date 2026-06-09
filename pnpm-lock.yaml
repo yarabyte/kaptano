@@ -107,6 +107,9 @@ importers:
       uuid:
         specifier: ^11.0.3
         version: 11.1.1
+      wasenderapi:
+        specifier: ^0.4.0
+        version: 0.4.0
       zod:
         specifier: ^3.24.1
         version: 3.25.76

@@ -1,24 +1,30 @@
 import { NextResponse } from "next/server";
 import { requirePlatformAdmin } from "@/lib/auth";
-
-const WORKER_URL = process.env.WORKER_URL ?? "http://localhost:8080";
+import { encrypt } from "@/lib/crypto";
+import { prisma } from "@/lib/prisma";
+import {
+  createSharedWhatsappSession,
+  getSharedSessionQr,
+  getSharedWebhookUrl,
+} from "@/lib/wasender/shared-session";
+import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
 
 export async function GET() {
   await requirePlatformAdmin();
 
-  const res = await fetch(`${WORKER_URL}/whatsapp/shared-session`, {
-    cache: "no-store",
+  const session = await prisma.sharedWhatsappSession.findUnique({
+    where: { id: SHARED_WHATSAPP_SESSION_ID },
   });
-  const data: unknown = await res.json();
 
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: (data as { error?: string }).error ?? "Erreur worker" },
-      { status: res.status }
-    );
-  }
-
-  return NextResponse.json(data);
+  return NextResponse.json({
+    session: session
+      ? {
+          status: session.status,
+          phoneNumber: session.phoneNumber,
+          lastConnectedAt: session.lastConnectedAt,
+        }
+      : null,
+  });
 }
 
 export async function POST(request: Request) {
@@ -32,19 +38,52 @@ export async function POST(request: Request) {
     );
   }
 
-  const res = await fetch(`${WORKER_URL}/whatsapp/shared-session`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phoneNumber: body.phoneNumber.trim() }),
-  });
+  try {
+    const webhookUrl = getSharedWebhookUrl();
+    const sessionData = await createSharedWhatsappSession(
+      webhookUrl,
+      body.phoneNumber.trim()
+    );
+    const qrCode = await getSharedSessionQr(sessionData.id);
 
-  const data: unknown = await res.json();
-  if (!res.ok) {
+    const session = await prisma.sharedWhatsappSession.upsert({
+      where: { id: SHARED_WHATSAPP_SESSION_ID },
+      create: {
+        id: SHARED_WHATSAPP_SESSION_ID,
+        wasenderSessionId: sessionData.id,
+        apiKeyEncrypted: encrypt(sessionData.api_key),
+        webhookSecret: sessionData.webhook_secret,
+        phoneNumber: sessionData.phone_number ?? body.phoneNumber.trim(),
+        status: "PENDING",
+      },
+      update: {
+        wasenderSessionId: sessionData.id,
+        apiKeyEncrypted: encrypt(sessionData.api_key),
+        webhookSecret: sessionData.webhook_secret,
+        phoneNumber: sessionData.phone_number ?? body.phoneNumber.trim(),
+        status: "PENDING",
+      },
+    });
+
+    return NextResponse.json({
+      session: {
+        id: session.id,
+        status: session.status,
+        phoneNumber: session.phoneNumber,
+      },
+      qrCode,
+      webhookUrl,
+    });
+  } catch (err) {
+    console.error("[platform/whatsapp-session]", err);
     return NextResponse.json(
-      { error: (data as { error?: string }).error ?? "Erreur worker" },
-      { status: res.status }
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : "Erreur lors de la création de la session WhatsApp",
+      },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json(data);
 }
