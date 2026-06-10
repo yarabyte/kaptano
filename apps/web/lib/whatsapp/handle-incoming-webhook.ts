@@ -126,10 +126,18 @@ export async function handleSharedIncomingMessageWebhookEvent(
   data: unknown
 ): Promise<void> {
   const normalized = normalizeIncomingWebhookData(data);
-  if (!normalized) return;
+  if (!normalized) {
+    console.warn("[incoming-message/shared] payload non reconnu", data);
+    return;
+  }
+
+  if (normalized.key.fromMe) return;
 
   const tenantId = await findTenantIdByIncomingKey(normalized.key);
-  if (!tenantId) return;
+  if (!tenantId) {
+    console.warn("[incoming-message/shared] lead introuvable pour", normalized.key);
+    return;
+  }
 
   await handleIncomingMessageWebhookEvent(data, tenantId);
 }

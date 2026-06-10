@@ -66,10 +66,11 @@ export async function createSharedWhatsappSession(
       phone_number: phoneNumber,
       account_protection: true,
       log_messages: true,
+      read_incoming_messages: true,
       webhook_url: webhookUrl,
       webhook_enabled: true,
       webhook_events: [...WASENDER_WEBHOOK_EVENTS],
-    });
+    } as Parameters<typeof client.createWhatsAppSession>[0]);
 
     const data = response.data as typeof response.data & SessionWithSecrets;
     const apiKey = data.api_key;

@@ -100,6 +100,9 @@ export default function RepliesPage() {
 
   useEffect(() => {
     load();
+    void fetch("/api/whatsapp/session/sync-webhooks", { method: "POST" }).catch(
+      () => undefined
+    );
     const interval = setInterval(() => load(true), 30_000);
     return () => clearInterval(interval);
   }, [load]);
@@ -199,9 +202,10 @@ export default function RepliesPage() {
             <div>
               <p className="font-medium">Aucune réponse reçue</p>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Les messages privés de vos leads apparaîtront ici. Si vous venez
-                d&apos;activer la fonctionnalité, cliquez sur « Sync webhooks »
-                puis demandez à un lead de vous écrire sur WhatsApp.
+                Répondez depuis le <strong>même numéro WhatsApp</strong> qu&apos;un
+                lead enregistré dans Kaptano. Les webhooks sont synchronisés
+                automatiquement à l&apos;ouverture de cette page — renvoyez un
+                message test après quelques secondes.
               </p>
             </div>
             <Link href="/dashboard/whatsapp">

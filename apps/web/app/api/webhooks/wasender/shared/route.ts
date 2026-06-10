@@ -57,6 +57,7 @@ export async function POST(request: Request) {
         }
         break;
       }
+      case WasenderWebhookEventType.MessagesReceived:
       case WasenderWebhookEventType.MessagesPersonalReceived:
       case WasenderWebhookEventType.MessagesUpsert: {
         await handleSharedIncomingMessageWebhookEvent(event.data);

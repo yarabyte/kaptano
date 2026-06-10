@@ -40,6 +40,10 @@ import {
   type WizardStep,
 } from "@/components/dashboard/whatsapp-step-indicator";
 import { uploadFormDataWithProgress } from "@/lib/upload-with-progress";
+import {
+  DispatchProgressBar,
+  type DispatchProgress,
+} from "@/components/dashboard/dispatch-progress-bar";
 import { cn } from "@/lib/utils";
 
 type Session = { status: string; phoneNumber: string | null };
@@ -62,19 +66,6 @@ type SendStats = {
     catalogClicks: number;
   };
   remainingToday: number;
-};
-
-type BatchProgress = {
-  batchId: string;
-  status: "RUNNING" | "COMPLETED" | "FAILED";
-  total: number;
-  queued: number;
-  sending: number;
-  sent: number;
-  delivered: number;
-  read: number;
-  failed: number;
-  progress: number;
 };
 
 type PollResultView = {
@@ -126,7 +117,7 @@ export default function WhatsappPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
-  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const [batchProgress, setBatchProgress] = useState<DispatchProgress | null>(null);
   const [whatsappMode, setWhatsappMode] = useState<WhatsappMode>("own");
   const [effectivePlanTier, setEffectivePlanTier] = useState<string>("FREE");
   const [polls, setPolls] = useState<PollResultView[]>([]);
@@ -230,7 +221,7 @@ export default function WhatsappPage() {
     async function poll() {
       const res = await fetch(`/api/whatsapp/dispatch/${activeBatchId}`);
       if (!res.ok || cancelled) return;
-      const data = (await res.json()) as BatchProgress;
+      const data = (await res.json()) as DispatchProgress;
       setBatchProgress(data);
       if (data.status !== "RUNNING") {
         await loadStats();
@@ -239,7 +230,7 @@ export default function WhatsappPage() {
     }
 
     poll();
-    const id = setInterval(poll, 2000);
+    const id = setInterval(poll, 1000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -454,7 +445,19 @@ export default function WhatsappPage() {
   async function startDispatch() {
     setDispatching(true);
     setError(null);
-    setBatchProgress(null);
+    setActiveBatchId(null);
+    setBatchProgress({
+      batchId: "",
+      status: "RUNNING",
+      total: eligible,
+      queued: eligible,
+      sending: 0,
+      sent: 0,
+      delivered: 0,
+      read: 0,
+      failed: 0,
+      progress: 0,
+    });
 
     try {
       const res = await fetch("/api/whatsapp/dispatch", {
@@ -464,30 +467,37 @@ export default function WhatsappPage() {
       });
       const data = (await res.json()) as {
         batchId?: string;
+        totalCount?: number;
         error?: string;
-        sent?: number;
-        failed?: number;
       };
 
       if (!res.ok || !data.batchId) {
+        setBatchProgress(null);
         setError(data.error ?? "Impossible de lancer l'envoi");
         return;
       }
 
-      if (data.failed && data.failed > 0 && !data.sent) {
-        setError("L'envoi a échoué pour tous les leads. Vérifiez WhatsApp et le format du message.");
-      }
-
       setActiveBatchId(data.batchId);
-      await Promise.all([loadStats(), loadPreview(standFilter || undefined), loadPolls()]);
+      setBatchProgress((current) =>
+        current
+          ? {
+              ...current,
+              batchId: data.batchId!,
+              total: data.totalCount ?? current.total,
+              queued: data.totalCount ?? current.total,
+            }
+          : current
+      );
     } catch {
+      setBatchProgress(null);
       setError("Erreur réseau lors du lancement de l'envoi");
     } finally {
       setDispatching(false);
     }
   }
 
-  const isSending = batchProgress?.status === "RUNNING";
+  const isSending =
+    dispatching || batchProgress?.status === "RUNNING";
   const selectedStand = stands.find((stand) => stand.id === standFilter);
   const standLabel = selectedStand?.name ?? "Tous les stands";
 
@@ -749,103 +759,29 @@ export default function WhatsappPage() {
                 </p>
               )}
 
+              {batchProgress && (
+                <DispatchProgressBar
+                  progress={batchProgress}
+                  preparing={dispatching}
+                />
+              )}
+
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Button variant="outline" onClick={handleWizardBack} className="h-11" disabled={isSending}>
                   Retour
                 </Button>
                 <Button
                   onClick={startDispatch}
-                  disabled={!connected || dispatching || isSending || eligible === 0}
+                  disabled={!connected || isSending || eligible === 0}
                   className="h-11 px-8"
                   size="lg"
                 >
                   <Send className="mr-2 h-4 w-4" />
-                  {dispatching
-                    ? "Lancement…"
-                    : isSending
-                      ? "Envoi en cours…"
-                      : `Envoyer à ${eligible} lead${eligible !== 1 ? "s" : ""}`}
+                  {isSending
+                    ? "Envoi en cours…"
+                    : `Envoyer à ${eligible} lead${eligible !== 1 ? "s" : ""}`}
                 </Button>
               </div>
-
-              {batchProgress && (
-                <div className="space-y-3 rounded-xl border border-border/60 bg-background p-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">
-                      {batchProgress.status === "RUNNING"
-                        ? "Progression de l'envoi"
-                        : batchProgress.status === "COMPLETED"
-                          ? "Envoi terminé"
-                          : "Envoi terminé avec erreurs"}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {batchProgress.progress}% ·{" "}
-                      {batchProgress.sent +
-                        batchProgress.delivered +
-                        batchProgress.read +
-                        batchProgress.failed}
-                      /{batchProgress.total}
-                    </span>
-                  </div>
-
-                  <div className="h-3 overflow-hidden rounded-full bg-muted">
-                    <div className="flex h-full transition-all duration-500">
-                      <div
-                        className="bg-primary transition-all"
-                        style={{
-                          width: `${(batchProgress.sent / batchProgress.total) * 100}%`,
-                        }}
-                      />
-                      <div
-                        className="bg-emerald-500 transition-all"
-                        style={{
-                          width: `${(batchProgress.delivered / batchProgress.total) * 100}%`,
-                        }}
-                      />
-                      <div
-                        className="bg-blue-500 transition-all"
-                        style={{
-                          width: `${(batchProgress.read / batchProgress.total) * 100}%`,
-                        }}
-                      />
-                      <div
-                        className="bg-destructive transition-all"
-                        style={{
-                          width: `${(batchProgress.failed / batchProgress.total) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3 text-xs">
-                    <ProgressChip
-                      label="En attente"
-                      count={batchProgress.queued + batchProgress.sending}
-                      color="bg-muted text-muted-foreground"
-                    />
-                    <ProgressChip
-                      label="Envoyés"
-                      count={batchProgress.sent}
-                      color="bg-primary/10 text-primary"
-                    />
-                    <ProgressChip
-                      label="Livrés"
-                      count={batchProgress.delivered}
-                      color="bg-emerald-50 text-emerald-700"
-                    />
-                    <ProgressChip
-                      label="Lus"
-                      count={batchProgress.read}
-                      color="bg-blue-50 text-blue-700"
-                    />
-                    <ProgressChip
-                      label="Échecs"
-                      count={batchProgress.failed}
-                      color="bg-destructive/10 text-destructive"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </CardContent>
@@ -1132,15 +1068,6 @@ function StatCard({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function ProgressChip({ label, count, color }: { label: string; count: number; color: string }) {
-  if (count === 0) return null;
-  return (
-    <span className={cn("rounded-full px-2.5 py-1 font-medium", color)}>
-      {label} : {count}
-    </span>
   );
 }
 

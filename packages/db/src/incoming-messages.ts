@@ -44,6 +44,10 @@ export type ParsedIncomingContent = {
   mediaPayload: Record<string, unknown> | null;
 };
 
+function rootMessageBody(root: Record<string, unknown>): string | undefined {
+  return typeof root.messageBody === "string" ? root.messageBody : undefined;
+}
+
 /** Normalise les payloads Wasender (`data.key` ou `data.messages`). */
 export function normalizeIncomingWebhookData(
   data: unknown
@@ -51,6 +55,7 @@ export function normalizeIncomingWebhookData(
   if (!data || typeof data !== "object") return null;
 
   const root = data as Record<string, unknown>;
+  const fallbackBody = rootMessageBody(root);
   const messages = root.messages;
 
   if (messages && typeof messages === "object") {
@@ -65,7 +70,9 @@ export function normalizeIncomingWebhookData(
         key: entry.key as IncomingMessageKey,
         message: entry.message as IncomingMessageContent | undefined,
         messageBody:
-          typeof entry.messageBody === "string" ? entry.messageBody : undefined,
+          typeof entry.messageBody === "string"
+            ? entry.messageBody
+            : fallbackBody,
         pushName: typeof entry.pushName === "string" ? entry.pushName : undefined,
         messageTimestamp:
           typeof entry.messageTimestamp === "number"
@@ -79,8 +86,7 @@ export function normalizeIncomingWebhookData(
     return {
       key: root.key as IncomingMessageKey,
       message: root.message as IncomingMessageContent | undefined,
-      messageBody:
-        typeof root.messageBody === "string" ? root.messageBody : undefined,
+      messageBody: fallbackBody,
       pushName: typeof root.pushName === "string" ? root.pushName : undefined,
       messageTimestamp:
         typeof root.messageTimestamp === "number"
@@ -222,9 +228,13 @@ export function parseIncomingMessageContent(
   };
 }
 
+export function phoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 function phoneFromIncomingKey(key: IncomingMessageKey): string | null {
   if (key.cleanedSenderPn) {
-    const digits = key.cleanedSenderPn.replace(/\D/g, "");
+    const digits = phoneDigits(key.cleanedSenderPn);
     return digits ? `+${digits}` : null;
   }
 
@@ -240,6 +250,39 @@ function phoneFromIncomingKey(key: IncomingMessageKey): string | null {
   return null;
 }
 
+async function findLeadByIncomingPhone(
+  tenantId: string | undefined,
+  phone: string
+): Promise<{ id: string; tenantId: string } | null> {
+  const digits = phoneDigits(phone);
+  if (!digits) return null;
+
+  const exact = await prisma.lead.findFirst({
+    where: {
+      ...(tenantId ? { tenantId } : {}),
+      whatsappNumber: phone,
+    },
+    select: { id: true, tenantId: true },
+    orderBy: { capturedAt: "desc" },
+  });
+  if (exact) return exact;
+
+  const suffix = digits.slice(-9);
+  if (suffix.length < 8) return null;
+
+  const candidates = await prisma.lead.findMany({
+    where: tenantId ? { tenantId } : undefined,
+    select: { id: true, tenantId: true, whatsappNumber: true },
+    orderBy: { capturedAt: "desc" },
+    take: 500,
+  });
+
+  return (
+    candidates.find((lead) => phoneDigits(lead.whatsappNumber).endsWith(suffix)) ??
+    null
+  );
+}
+
 export async function findLeadIdByIncomingKey(
   tenantId: string,
   key: IncomingMessageKey
@@ -247,13 +290,7 @@ export async function findLeadIdByIncomingKey(
   const phone = phoneFromIncomingKey(key);
   if (!phone) return null;
 
-  const lead = await prisma.lead.findUnique({
-    where: {
-      tenantId_whatsappNumber: { tenantId, whatsappNumber: phone },
-    },
-    select: { id: true },
-  });
-
+  const lead = await findLeadByIncomingPhone(tenantId, phone);
   return lead?.id ?? null;
 }
 
@@ -264,12 +301,7 @@ export async function findTenantIdByIncomingKey(
   const phone = phoneFromIncomingKey(key);
   if (!phone) return null;
 
-  const lead = await prisma.lead.findFirst({
-    where: { whatsappNumber: phone },
-    select: { tenantId: true },
-    orderBy: { capturedAt: "desc" },
-  });
-
+  const lead = await findLeadByIncomingPhone(undefined, phone);
   return lead?.tenantId ?? null;
 }
 

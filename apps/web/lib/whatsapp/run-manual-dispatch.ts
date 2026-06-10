@@ -8,10 +8,13 @@ import {
 import { processMessageJob } from "@/lib/whatsapp/process-message-job";
 import { resolveWhatsappCredentials } from "@/lib/whatsapp/resolve-session";
 
-export async function runManualDispatch(
-  tenantId: string,
-  filters?: ManualDispatchFilters
-): Promise<{ batchId: string; totalCount: number; sent: number; failed: number }> {
+export type ManualDispatchStartResult = {
+  batchId: string;
+  totalCount: number;
+  messageJobIds: string[];
+};
+
+async function assertDispatchReady(tenantId: string) {
   const credentials = await resolveWhatsappCredentials(tenantId);
   if (!credentials.apiKeyEncrypted || credentials.status !== "CONNECTED") {
     throw new Error(
@@ -28,6 +31,16 @@ export async function runManualDispatch(
   if (remaining <= 0) {
     throw new Error(`Plafond quotidien d'envois atteint (${tenantDailyCap})`);
   }
+
+  return remaining;
+}
+
+/** Crée le batch et les jobs, retourne immédiatement (envoi en arrière-plan). */
+export async function startManualDispatch(
+  tenantId: string,
+  filters?: ManualDispatchFilters
+): Promise<ManualDispatchStartResult> {
+  const remaining = await assertDispatchReady(tenantId);
 
   const leads = await prisma.lead.findMany({
     where: await buildEligibleLeadsWhere(tenantId, filters),
@@ -48,8 +61,7 @@ export async function runManualDispatch(
     },
   });
 
-  let sent = 0;
-  let failed = 0;
+  const messageJobIds: string[] = [];
 
   for (const lead of leads) {
     const messageJob = await prisma.messageJob.create({
@@ -61,22 +73,42 @@ export async function runManualDispatch(
         scheduledFor: new Date(),
       },
     });
+    messageJobIds.push(messageJob.id);
+  }
 
+  return {
+    batchId: batch.id,
+    totalCount: leads.length,
+    messageJobIds,
+  };
+}
+
+/** Traite les jobs d'un batch (appelé en arrière-plan après la réponse HTTP). */
+export async function processManualDispatchBatch(
+  tenantId: string,
+  batchId: string,
+  messageJobIds: string[]
+): Promise<{ sent: number; failed: number }> {
+  let sent = 0;
+  let failed = 0;
+
+  for (const messageJobId of messageJobIds) {
     try {
-      await processMessageJob(messageJob.id);
+      await processMessageJob(messageJobId);
       sent += 1;
-    } catch {
+    } catch (err) {
       failed += 1;
+      console.error("[manual-dispatch]", { tenantId, batchId, messageJobId, err });
     }
   }
 
   await prisma.dispatchBatch.update({
-    where: { id: batch.id },
+    where: { id: batchId },
     data: {
-      status: failed === leads.length ? "FAILED" : "COMPLETED",
+      status: failed === messageJobIds.length ? "FAILED" : "COMPLETED",
       completedAt: new Date(),
     },
   });
 
-  return { batchId: batch.id, totalCount: leads.length, sent, failed };
+  return { sent, failed };
 }

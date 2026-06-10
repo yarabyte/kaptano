@@ -122,6 +122,7 @@ export async function POST(
         }
         break;
       }
+      case WasenderWebhookEventType.MessagesReceived:
       case WasenderWebhookEventType.MessagesPersonalReceived:
       case WasenderWebhookEventType.MessagesUpsert: {
         await handleIncomingMessageWebhookEvent(event.data, tenantId);

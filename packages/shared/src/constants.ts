@@ -44,6 +44,7 @@ export const WASENDER_WEBHOOK_EVENTS = [
   "message.sent",
   "messages.update",
   "messages.upsert",
+  "messages.received",
   "messages-personal.received",
   "qrcode.updated",
   "poll.results",

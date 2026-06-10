@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-
-export const maxDuration = 60;
 import { manualDispatchFiltersSchema } from "@kaptano/shared";
 import { requireTenantContext, requireRole } from "@/lib/auth";
-import { runManualDispatch } from "@/lib/whatsapp/run-manual-dispatch";
+import { runInBackground } from "@/lib/background-task";
+import {
+  processManualDispatchBatch,
+  startManualDispatch,
+} from "@/lib/whatsapp/run-manual-dispatch";
 
 export async function POST(request: Request) {
   const ctx = await requireTenantContext();
@@ -12,8 +14,17 @@ export async function POST(request: Request) {
   const body = manualDispatchFiltersSchema.parse(await request.json().catch(() => ({})));
 
   try {
-    const result = await runManualDispatch(ctx.tenantId, body);
-    return NextResponse.json(result);
+    const { batchId, totalCount, messageJobIds } = await startManualDispatch(
+      ctx.tenantId,
+      body
+    );
+
+    const tenantId = ctx.tenantId;
+    runInBackground(async () => {
+      await processManualDispatchBatch(tenantId, batchId, messageJobIds);
+    });
+
+    return NextResponse.json({ batchId, totalCount });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur d'envoi";
     return NextResponse.json({ error: message }, { status: 400 });

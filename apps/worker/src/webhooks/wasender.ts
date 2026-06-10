@@ -104,6 +104,7 @@ export async function handleWasenderWebhook(
         }
         break;
       }
+      case WasenderWebhookEventType.MessagesReceived:
       case WasenderWebhookEventType.MessagesPersonalReceived:
       case WasenderWebhookEventType.MessagesUpsert: {
         await handleIncomingWhatsappWebhook(event.data, tenantId);
@@ -237,6 +238,7 @@ export async function handleSharedWasenderWebhook(
         }
         break;
       }
+      case WasenderWebhookEventType.MessagesReceived:
       case WasenderWebhookEventType.MessagesPersonalReceived:
       case WasenderWebhookEventType.MessagesUpsert: {
         const normalized = normalizeIncomingWebhookData(event.data);
