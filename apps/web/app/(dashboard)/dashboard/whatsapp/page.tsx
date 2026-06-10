@@ -95,6 +95,8 @@ export default function WhatsappPage() {
   const [stands, setStands] = useState<Stand[]>([]);
   const [standFilter, setStandFilter] = useState("");
   const [eligible, setEligible] = useState(0);
+  const [totalWithOptIn, setTotalWithOptIn] = useState(0);
+  const [alreadyContacted, setAlreadyContacted] = useState(0);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [loading, setLoading] = useState(false);
@@ -121,8 +123,14 @@ export default function WhatsappPage() {
     const qs = standId ? `?standId=${standId}` : "";
     const res = await fetch(`/api/whatsapp/dispatch/preview${qs}`);
     if (res.ok) {
-      const data = (await res.json()) as { eligible: number };
+      const data = (await res.json()) as {
+        eligible: number;
+        totalWithOptIn?: number;
+        alreadyContacted?: number;
+      };
       setEligible(data.eligible);
+      setTotalWithOptIn(data.totalWithOptIn ?? 0);
+      setAlreadyContacted(data.alreadyContacted ?? 0);
     }
   }, []);
 
@@ -364,13 +372,50 @@ export default function WhatsappPage() {
             <div>
               <CardTitle className="font-heading text-lg">Envoi manuel</CardTitle>
               <CardDescription>
-                {eligible} lead{eligible !== 1 ? "s" : ""} éligible{eligible !== 1 ? "s" : ""}
+                Relancez l&apos;envoi du catalogue pour les leads pas encore contactés
                 {stats ? ` · ${stats.remainingToday} envois restants aujourd'hui` : ""}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <SummaryPill
+              label="Leads enregistrés"
+              value={totalWithOptIn}
+              hint="Avec consentement WhatsApp"
+            />
+            <SummaryPill
+              label="Déjà contactés"
+              value={alreadyContacted}
+              hint="Message envoyé à la capture ou via campagne"
+              accent="emerald"
+            />
+            <SummaryPill
+              label="En attente d'envoi"
+              value={eligible}
+              hint="Éligibles à un envoi manuel"
+              accent="primary"
+            />
+          </div>
+
+          {totalWithOptIn > 0 && eligible === 0 && (
+            <p className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-sm text-blue-950">
+              Vos leads ont déjà reçu un message WhatsApp (remerciement automatique à la
+              capture). L&apos;envoi manuel sert à relancer ceux qui n&apos;ont pas encore été
+              contactés.
+            </p>
+          )}
+
+          {totalWithOptIn === 0 && (
+            <p className="rounded-lg border border-dashed border-border/80 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              Aucun lead avec opt-in pour le moment. Capturez des visiteurs depuis la page{" "}
+              <Link href="/dashboard/capture" className="font-medium text-primary underline-offset-2 hover:underline">
+                Capture agent
+              </Link>{" "}
+              ou via le QR code de vos stands.
+            </p>
+          )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
             {stands.length > 0 && (
               <div className="flex-1 space-y-2">
@@ -814,6 +859,33 @@ function ProgressChip({ label, count, color }: { label: string; count: number; c
     <span className={cn("rounded-full px-2.5 py-1 font-medium", color)}>
       {label} : {count}
     </span>
+  );
+}
+
+function SummaryPill({
+  label,
+  value,
+  hint,
+  accent = "default",
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  accent?: "default" | "emerald" | "primary";
+}) {
+  const valueClass =
+    accent === "emerald"
+      ? "text-emerald-700"
+      : accent === "primary"
+        ? "text-primary"
+        : "text-foreground";
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-background p-3">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className={cn("mt-1 text-2xl font-bold tabular-nums", valueClass)}>{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
+    </div>
   );
 }
 

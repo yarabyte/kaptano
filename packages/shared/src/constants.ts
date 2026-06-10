@@ -14,6 +14,9 @@ export const CATALOG_BUCKET = "catalogs";
 export const WHATSAPP_MESSAGE_TEMPLATE =
   "Bonjour {prenom}, merci pour votre visite sur notre stand ! Voici notre catalogue : {lien}";
 
+export const LEAD_CAPTURE_THANK_YOU_TEMPLATE =
+  "Bonjour {prenom}, merci pour votre visite ! Nous sommes ravis de vous accueillir. — {entreprise}";
+
 export const PLAN_QUOTAS: Record<string, number> = {
   FREE: 50,
   STARTER: 500,

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { effectivePlanTier, usesSharedWhatsapp } from "@kaptano/shared";
 import { requireTenantContext, requireRole } from "@/lib/auth";
@@ -11,6 +12,14 @@ import { normalizePhoneToE164 } from "@/lib/phone";
 import { resolveWhatsappCredentials } from "@/lib/whatsapp/resolve-session";
 import { sendWhatsappText } from "@/lib/whatsapp/send-text";
 import { teamInviteWhatsappMessage } from "@/lib/whatsapp/team-invite-message";
+
+const TEMP_PASSWORD_CHARS =
+  "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+
+function generateTempPassword(length = 8): string {
+  const bytes = randomBytes(length);
+  return Array.from(bytes, (b) => TEMP_PASSWORD_CHARS[b % TEMP_PASSWORD_CHARS.length]).join("");
+}
 
 export async function GET() {
   const ctx = await requireTenantContext();
@@ -104,7 +113,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const tempPassword = crypto.randomUUID();
+  const tempPassword = generateTempPassword();
 
   const supabase = createSupabaseServiceClient();
   const { data: authData, error: authError } =
