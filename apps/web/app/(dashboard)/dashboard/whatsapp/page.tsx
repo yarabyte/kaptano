@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DashboardPageSkeleton } from "@/components/dashboard/page-loading";
 import { cn } from "@/lib/utils";
 
 type Session = { status: string; phoneNumber: string | null };
@@ -201,6 +202,18 @@ export default function WhatsappPage() {
   }, [standFilter, loadPreview]);
 
   useEffect(() => {
+    if (pageLoading) return;
+
+    const refreshPolls = () => {
+      void loadPolls();
+    };
+
+    refreshPolls();
+    const id = setInterval(refreshPolls, 15_000);
+    return () => clearInterval(id);
+  }, [pageLoading, loadPolls]);
+
+  useEffect(() => {
     if (!activeBatchId) return;
 
     let cancelled = false;
@@ -354,16 +367,7 @@ export default function WhatsappPage() {
   const isSending = batchProgress?.status === "RUNNING";
 
   if (pageLoading) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-10 w-64 rounded-lg bg-muted" />
-        <div className="grid gap-4 sm:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 rounded-xl bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
+    return <DashboardPageSkeleton />;
   }
 
   return (

@@ -7,6 +7,10 @@ import {
   WasenderAPIError,
   WEBHOOK_SIGNATURE_HEADER,
 } from "wasenderapi";
+import {
+  handleMessageSentWebhook,
+  handlePollResultsWebhook,
+} from "@kaptano/db";
 import { prisma } from "../lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "../whatsapp/resolveSession";
 import { logger } from "../lib/logger";
@@ -72,10 +76,19 @@ export async function handleWasenderWebhook(
         break;
       }
       case WasenderWebhookEventType.MessageSent: {
+        if (!Array.isArray(event.data)) {
+          await handleMessageSentWebhook(event.data, tenantId);
+        }
         const messageId = event.data.key?.id;
         const updateStatus = event.data.status;
         if (!messageId) break;
         await updateMessageJobStatus(tenantId, messageId, updateStatus);
+        break;
+      }
+      case WasenderWebhookEventType.PollResults: {
+        if (!Array.isArray(event.data)) {
+          await handlePollResultsWebhook(event.data, event.timestamp, tenantId);
+        }
         break;
       }
       case WasenderWebhookEventType.MessagesUpdate: {
@@ -191,10 +204,19 @@ export async function handleSharedWasenderWebhook(
         break;
       }
       case WasenderWebhookEventType.MessageSent: {
+        if (!Array.isArray(event.data)) {
+          await handleMessageSentWebhook(event.data);
+        }
         const messageId = event.data.key?.id;
         const updateStatus = event.data.status;
         if (!messageId) break;
         await updateMessageJobStatus("", messageId, updateStatus);
+        break;
+      }
+      case WasenderWebhookEventType.PollResults: {
+        if (!Array.isArray(event.data)) {
+          await handlePollResultsWebhook(event.data, event.timestamp);
+        }
         break;
       }
       case WasenderWebhookEventType.MessagesUpdate: {

@@ -65,12 +65,33 @@ export function presetForMode(mode: WasenderRatePlanMode) {
   }
 }
 
+const DEFAULT_PLATFORM_LIMITS = {
+  id: LIMITS_ID,
+  wasenderPlanMode: "ACCOUNT_PROTECTION" as const,
+  minIntervalMs: 5_000,
+  maxSendsPerMinute: 12,
+  globalDailySendCap: 500,
+  tenantDailySendCap: DAILY_SEND_CAP,
+  maxConcurrentSends: 1,
+  enforcementEnabled: true,
+  lastSharedSendAt: null as Date | null,
+  lastRateLimitLimit: null as number | null,
+  lastRateLimitRemaining: null as number | null,
+  lastRateLimitResetAt: null as Date | null,
+  updatedAt: new Date(),
+};
+
 export async function getPlatformWhatsappLimits() {
-  return prisma.platformWhatsappLimits.upsert({
-    where: { id: LIMITS_ID },
-    create: { id: LIMITS_ID },
-    update: {},
-  });
+  try {
+    return await prisma.platformWhatsappLimits.upsert({
+      where: { id: LIMITS_ID },
+      create: { id: LIMITS_ID },
+      update: {},
+    });
+  } catch (error) {
+    console.error("[rate-limits] PlatformWhatsappLimits indisponible:", error);
+    return DEFAULT_PLATFORM_LIMITS;
+  }
 }
 
 export async function getTenantDailySendCap(): Promise<number> {

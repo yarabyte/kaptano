@@ -80,11 +80,6 @@ export async function processSendJob(data: SendJobData): Promise<void> {
     return;
   }
 
-  await prisma.messageJob.update({
-    where: { id: job.id },
-    data: { status: "SENDING", attempts: { increment: 1 } },
-  });
-
   const catalog =
     job.lead.stand?.catalog ?? tenant?.catalogs[0] ?? null;
 
@@ -105,6 +100,29 @@ export async function processSendJob(data: SendJobData): Promise<void> {
     });
     return;
   }
+
+  let pollSnapshot: Prisma.InputJsonValue | undefined;
+  if (messageType === "POLL") {
+    const pollConfig = parseWhatsappMessageConfig(
+      "POLL",
+      tenant?.whatsappMessageConfig ?? {}
+    ) as { question: string; options: string[]; multiSelect?: boolean };
+    pollSnapshot = {
+      question: pollConfig.question,
+      options: pollConfig.options,
+      multiSelect: pollConfig.multiSelect,
+    };
+  }
+
+  await prisma.messageJob.update({
+    where: { id: job.id },
+    data: {
+      status: "SENDING",
+      attempts: { increment: 1 },
+      isPoll: messageType === "POLL",
+      pollSnapshot,
+    },
+  });
 
   let outbound: WasenderOutboundMessage;
   try {

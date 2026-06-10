@@ -30,3 +30,4 @@ function getPrismaClient(): PrismaClient {
 export const prisma = getPrismaClient();
 
 export * from "@prisma/client";
+export * from "./poll-results";

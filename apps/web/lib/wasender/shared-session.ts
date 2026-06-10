@@ -135,7 +135,4 @@ export async function connectAndGetSharedSessionQr(
   }
 }
 
-export function getSharedWebhookUrl(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  return `${appUrl.replace(/\/$/, "")}/api/webhooks/wasender/shared`;
-}
+export { getSharedWebhookUrl } from "./webhook-url";

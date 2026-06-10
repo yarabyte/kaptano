@@ -67,11 +67,7 @@ export async function requireAuth(): Promise<TenantContext> {
     redirect("/login?error=no_tenant");
   }
 
-  if (
-    user.role !== "PLATFORM_ADMIN" &&
-    user.tenant &&
-    user.tenant.status !== "active"
-  ) {
+  if (user.role !== "PLATFORM_ADMIN" && user.tenant?.status === "inactive") {
     redirect("/login?error=tenant_inactive");
   }
 

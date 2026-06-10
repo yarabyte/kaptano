@@ -26,6 +26,11 @@ import { effectivePlanTier, usesSharedWhatsapp } from "@kaptano/shared";
 const app = express();
 const PORT = Number(process.env.WORKER_PORT ?? 8080);
 const WORKER_URL = process.env.WORKER_URL ?? `http://localhost:${PORT}`;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+function appWebhookUrl(path: string): string {
+  return `${APP_URL.replace(/\/$/, "")}${path}`;
+}
 
 app.use(express.json());
 
@@ -65,10 +70,10 @@ app.post("/whatsapp/sessions/:tenantId", async (req, res) => {
       return;
     }
 
-    const workerWebhookUrl = `${WORKER_URL}/webhooks/wasender/${tenantId}`;
+    const webhookUrl = appWebhookUrl(`/api/webhooks/wasender/${tenantId}`);
 
     const sessionData = await wasender.createSession(
-      workerWebhookUrl,
+      webhookUrl,
       phoneNumber,
       tenant.name
     );
@@ -100,7 +105,7 @@ app.post("/whatsapp/sessions/:tenantId", async (req, res) => {
       session: { id: session.id, status: session.status },
       qrCode: qrData.qr,
       alreadyConnected: qrData.alreadyConnected ?? false,
-      webhookUrl: workerWebhookUrl,
+      webhookUrl,
     });
   } catch (err) {
     logger.error({ err, tenantId }, "Session creation failed");
@@ -151,10 +156,10 @@ app.post("/whatsapp/shared-session", async (req, res) => {
   }
 
   try {
-    const workerWebhookUrl = `${WORKER_URL}/webhooks/wasender/shared`;
+    const webhookUrl = appWebhookUrl("/api/webhooks/wasender/shared");
 
     const sessionData = await wasender.createSession(
-      workerWebhookUrl,
+      webhookUrl,
       phoneNumber,
       "Kaptano — numéro partagé"
     );
@@ -182,7 +187,7 @@ app.post("/whatsapp/shared-session", async (req, res) => {
     res.json({
       session: { id: session.id, status: session.status, phoneNumber: session.phoneNumber },
       qrCode: qrData.qr,
-      webhookUrl: workerWebhookUrl,
+      webhookUrl,
     });
   } catch (err) {
     logger.error({ err }, "Shared session creation failed");

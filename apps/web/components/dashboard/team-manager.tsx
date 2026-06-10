@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PageSpinner } from "@/components/dashboard/page-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -210,6 +211,10 @@ export function TeamManager() {
     }
   }
 
+  if (loading) {
+    return <PageSpinner label="Chargement de l'équipe…" />;
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -398,12 +403,7 @@ export function TeamManager() {
       <div className="space-y-4">
         <h2 className="font-heading text-lg font-semibold">Membres de l&apos;équipe</h2>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            Chargement…
-          </div>
-        ) : users.length === 0 ? (
+        {users.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center py-12 text-center">
               <Users className="mb-3 h-10 w-10 text-muted-foreground/50" />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { LeadCaptureForm } from "@/components/leads/lead-capture-form";
+import { PageSpinner } from "@/components/dashboard/page-loading";
 import { queueLeadOffline, syncPendingLeads } from "@/lib/offline/db";
 
 type StandInfo = {
@@ -109,8 +110,8 @@ export default function PublicCapturePage({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Chargement...</p>
+      <div className="flex min-h-screen items-center justify-center bg-accent/20">
+        <PageSpinner label="Chargement du stand…" />
       </div>
     );
   }

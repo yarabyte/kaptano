@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageSpinner } from "@/components/dashboard/page-loading";
 
 type Event = {
   id: string;
@@ -56,6 +57,7 @@ export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<EventForm>(emptyForm);
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EventForm>(emptyForm);
@@ -65,6 +67,7 @@ export default function EventsPage() {
     const res = await fetch("/api/events");
     const data = (await res.json()) as { events: Event[] };
     setEvents(data.events ?? []);
+    setPageLoading(false);
   }
 
   useEffect(() => {
@@ -123,6 +126,10 @@ export default function EventsPage() {
     await fetch(`/api/events/${id}`, { method: "DELETE" });
     if (editingId === id) setEditingId(null);
     load();
+  }
+
+  if (pageLoading) {
+    return <PageSpinner label="Chargement des événements…" />;
   }
 
   return (

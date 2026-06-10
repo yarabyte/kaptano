@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       case WasenderWebhookEventType.MessageSent: {
         const data = event.data;
         if (!Array.isArray(data)) {
-          await handleMessageSentWebhook(data);
+          await handleMessageSentWebhook(data as { key?: { id?: string; remoteJid?: string; fromMe?: boolean } });
         }
         break;
       }
