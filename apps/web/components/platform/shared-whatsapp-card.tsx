@@ -28,6 +28,8 @@ export function SharedWhatsappCard() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncOk, setSyncOk] = useState<string | null>(null);
 
   const connected = session?.status === "CONNECTED";
   const status = session?.status ? STATUS[session.status] : null;
@@ -43,6 +45,27 @@ export function SharedWhatsappCard() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function syncWebhooks() {
+    setSyncing(true);
+    setSyncOk(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/platform/whatsapp-session/sync-webhooks", {
+        method: "POST",
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Échec de la synchronisation");
+        return;
+      }
+      setSyncOk("Webhooks synchronisés (messages entrants + sondages).");
+    } catch {
+      setError("Impossible de synchroniser les webhooks.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function connect() {
     setLoading(true);
@@ -99,6 +122,12 @@ export function SharedWhatsappCard() {
         {error && (
           <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
+          </p>
+        )}
+
+        {syncOk && (
+          <p className="rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-3 py-2 text-sm text-emerald-950">
+            {syncOk}
           </p>
         )}
 
@@ -162,14 +191,26 @@ export function SharedWhatsappCard() {
           </div>
         )}
 
-        <Button
-          onClick={connect}
-          disabled={loading || !phoneNumber.trim()}
-          className="h-11 w-full sm:w-auto"
-        >
-          <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
-          {connected ? "Reconnecter" : "Générer le QR code"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={connect}
+            disabled={loading || !phoneNumber.trim()}
+            className="h-11"
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+            {connected ? "Reconnecter" : "Générer le QR code"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={syncWebhooks}
+            disabled={syncing}
+            className="h-11"
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", syncing && "animate-spin")} />
+            Sync webhooks
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

@@ -1,4 +1,5 @@
 import type { Prisma } from "@kaptano/db";
+import { getLeadIdsAtDailyMessageCap } from "@kaptano/db";
 import type { ManualDispatchFilters } from "@kaptano/shared";
 import {
   DAILY_SEND_CAP,
@@ -19,14 +20,16 @@ function randomManualJitter(): number {
   );
 }
 
-export function buildEligibleLeadsWhere(
+export async function buildEligibleLeadsWhere(
   tenantId: string,
   filters?: ManualDispatchFilters
-): Prisma.LeadWhereInput {
+): Promise<Prisma.LeadWhereInput> {
+  const atCap = await getLeadIdsAtDailyMessageCap(tenantId);
+
   const where: Prisma.LeadWhereInput = {
     tenantId,
     optInConsent: true,
-    messageJobs: { none: {} },
+    ...(atCap.length > 0 ? { id: { notIn: atCap } } : {}),
   };
 
   if (filters?.standId) {
@@ -47,7 +50,7 @@ export async function countEligibleLeads(
   filters?: ManualDispatchFilters
 ): Promise<number> {
   return prisma.lead.count({
-    where: buildEligibleLeadsWhere(tenantId, filters),
+    where: await buildEligibleLeadsWhere(tenantId, filters),
   });
 }
 
@@ -78,7 +81,7 @@ export async function runManualDispatch(
   }
 
   const leads = await prisma.lead.findMany({
-    where: buildEligibleLeadsWhere(tenantId, filters),
+    where: await buildEligibleLeadsWhere(tenantId, filters),
     orderBy: { capturedAt: "asc" },
     take: remaining,
   });

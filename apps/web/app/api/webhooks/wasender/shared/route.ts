@@ -10,6 +10,7 @@ import {
 } from "wasenderapi";
 import { prisma } from "@/lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
+import { handleSharedIncomingMessageWebhookEvent } from "@/lib/whatsapp/handle-incoming-webhook";
 import {
   handleMessageSentWebhook,
   handlePollResultsWebhook,
@@ -54,6 +55,11 @@ export async function POST(request: Request) {
         if (!Array.isArray(data)) {
           await handleMessageSentWebhook(data as { key?: { id?: string; remoteJid?: string; fromMe?: boolean } });
         }
+        break;
+      }
+      case WasenderWebhookEventType.MessagesPersonalReceived:
+      case WasenderWebhookEventType.MessagesUpsert: {
+        await handleSharedIncomingMessageWebhookEvent(event.data);
         break;
       }
       case WasenderWebhookEventType.SessionStatus: {

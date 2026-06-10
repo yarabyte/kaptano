@@ -8,8 +8,11 @@ import {
   WEBHOOK_SIGNATURE_HEADER,
 } from "wasenderapi";
 import {
+  findTenantIdByIncomingKey,
+  handleIncomingWhatsappWebhook,
   handleMessageSentWebhook,
   handlePollResultsWebhook,
+  normalizeIncomingWebhookData,
 } from "@kaptano/db";
 import { prisma } from "../lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "../whatsapp/resolveSession";
@@ -99,6 +102,11 @@ export async function handleWasenderWebhook(
           if (!messageId || !updateStatus) continue;
           await updateMessageJobStatus(tenantId, messageId, updateStatus);
         }
+        break;
+      }
+      case WasenderWebhookEventType.MessagesPersonalReceived:
+      case WasenderWebhookEventType.MessagesUpsert: {
+        await handleIncomingWhatsappWebhook(event.data, tenantId);
         break;
       }
     }
@@ -226,6 +234,17 @@ export async function handleSharedWasenderWebhook(
           const updateStatus = entry.update?.status;
           if (!messageId || !updateStatus) continue;
           await updateMessageJobStatus("", messageId, updateStatus);
+        }
+        break;
+      }
+      case WasenderWebhookEventType.MessagesPersonalReceived:
+      case WasenderWebhookEventType.MessagesUpsert: {
+        const normalized = normalizeIncomingWebhookData(event.data);
+        if (normalized) {
+          const tenantId = await findTenantIdByIncomingKey(normalized.key);
+          if (tenantId) {
+            await handleIncomingWhatsappWebhook(event.data, tenantId);
+          }
         }
         break;
       }

@@ -1,3 +1,4 @@
+import { getLeadIdsAtDailyMessageCap } from "@kaptano/db";
 import { prisma } from "../lib/prisma";
 import { enqueueSendJob, randomJitter } from "../queues/sendQueue";
 import { resolveWhatsappCredentials } from "../whatsapp/resolveSession";
@@ -20,12 +21,14 @@ export async function runDailyDispatch(): Promise<void> {
     const endOfDay = new Date(startOfDay);
     endOfDay.setDate(endOfDay.getDate() + 1);
 
+    const atCap = await getLeadIdsAtDailyMessageCap(tenant.id, startOfDay);
+
     const leads = await prisma.lead.findMany({
       where: {
         tenantId: tenant.id,
         optInConsent: true,
         capturedAt: { gte: startOfDay, lt: endOfDay },
-        messageJobs: { none: {} },
+        ...(atCap.length > 0 ? { id: { notIn: atCap } } : {}),
       },
       orderBy: { capturedAt: "asc" },
     });

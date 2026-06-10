@@ -21,6 +21,7 @@ import {
   quickActionPresets,
 } from "@/components/dashboard/quick-actions-grid";
 import { PollResultsCard } from "@/components/dashboard/poll-results-card";
+import { IncomingMessagesCard } from "@/components/dashboard/incoming-messages-card";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 export default async function DashboardPage() {
@@ -215,6 +216,19 @@ export default async function DashboardPage() {
       >
         <PollResultsCard tenantId={ctx.tenantId} />
       </Suspense>
+
+      {isAdmin && (
+        <Suspense
+          fallback={
+            <div className="space-y-3 rounded-2xl border border-border/60 p-6">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          }
+        >
+          <IncomingMessagesCard tenantId={ctx.tenantId} />
+        </Suspense>
+      )}
 
       <QuickActionsGrid actions={quickActions} />
     </div>

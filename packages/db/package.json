@@ -16,6 +16,7 @@
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@kaptano/shared": "workspace:*",
     "@prisma/client": "^6.1.0"
   },
   "devDependencies": {

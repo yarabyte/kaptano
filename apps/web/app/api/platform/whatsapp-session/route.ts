@@ -8,6 +8,7 @@ import {
   createSharedWhatsappSession,
   getSharedWebhookUrl,
 } from "@/lib/wasender/shared-session";
+import { syncWasenderWebhookEvents } from "@/lib/wasender/sync-webhook-events";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
 
 export async function GET() {
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
     if (!wasenderSessionId) {
       createResult = await createSharedWhatsappSession(webhookUrl, phoneNumber);
       wasenderSessionId = createResult.id;
+    } else {
+      await syncWasenderWebhookEvents(wasenderSessionId, webhookUrl);
     }
 
     const connection = await connectAndGetSharedSessionQr(wasenderSessionId);

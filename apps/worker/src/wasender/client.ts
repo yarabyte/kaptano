@@ -1,3 +1,4 @@
+import { WASENDER_WEBHOOK_EVENTS } from "@kaptano/shared";
 import { WasenderAPIError, type Wasender } from "wasenderapi";
 import {
   createAccountWasenderClient,
@@ -8,14 +9,6 @@ import { logger } from "../lib/logger";
 const BASE_URL =
   process.env.WASENDER_API_BASE ?? "https://www.wasenderapi.com/api";
 const ACCOUNT_TOKEN = process.env.WASENDER_ACCOUNT_TOKEN ?? "";
-
-const WEBHOOK_EVENTS = [
-  "session.status",
-  "message.sent",
-  "messages.update",
-  "qrcode.updated",
-  "poll.results",
-];
 
 type SessionCreateResult = {
   id: string;
@@ -106,7 +99,7 @@ export class WasenderClient {
         log_messages: true,
         webhook_url: webhookUrl,
         webhook_enabled: true,
-        webhook_events: WEBHOOK_EVENTS,
+        webhook_events: [...WASENDER_WEBHOOK_EVENTS],
       });
 
       const data = response.data as typeof response.data & SessionWithSecrets;

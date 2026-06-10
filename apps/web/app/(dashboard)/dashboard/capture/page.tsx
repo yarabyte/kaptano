@@ -17,7 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type Feedback =
-  | { type: "success"; whatsappSent: boolean; offline?: boolean }
+  | { type: "success"; whatsappQueued?: boolean; offline?: boolean }
   | { type: "error"; message: string };
 
 export default function AgentCapturePage() {
@@ -80,12 +80,12 @@ export default function AgentCapturePage() {
 
       if (res.ok) {
         const data = (await res.json()) as {
-          data?: { whatsappSent?: boolean };
+          data?: { whatsappQueued?: boolean };
         };
         setSuccessCount((c) => c + 1);
         setFeedback({
           type: "success",
-          whatsappSent: data.data?.whatsappSent === true,
+          whatsappQueued: data.data?.whatsappQueued === true,
         });
         return;
       }
@@ -96,7 +96,7 @@ export default function AgentCapturePage() {
         await queueLeadOffline(payload);
         await refreshPending();
         setSuccessCount((c) => c + 1);
-        setFeedback({ type: "success", whatsappSent: false, offline: true });
+        setFeedback({ type: "success", offline: true });
         return;
       }
 
@@ -105,7 +105,7 @@ export default function AgentCapturePage() {
       await queueLeadOffline(payload);
       await refreshPending();
       setSuccessCount((c) => c + 1);
-      setFeedback({ type: "success", whatsappSent: false, offline: true });
+      setFeedback({ type: "success", offline: true });
     }
   }
 
@@ -182,14 +182,14 @@ export default function AgentCapturePage() {
               <p className="mt-1 text-emerald-900/80">
                 Sauvegardé localement — synchronisation dès que la connexion revient.
               </p>
-            ) : feedback.whatsappSent ? (
+            ) : feedback.whatsappQueued ? (
               <p className="mt-1 flex items-center gap-1.5 text-emerald-900/80">
                 <MessageCircle className="h-4 w-4" />
-                Message de remerciement envoyé par WhatsApp.
+                Message de remerciement en cours d&apos;envoi par WhatsApp.
               </p>
             ) : (
               <p className="mt-1 text-emerald-900/80">
-                Le message WhatsApp n&apos;a pas pu être envoyé (vérifiez la connexion WhatsApp).
+                Lead enregistré — envoi WhatsApp non planifié (quota ou déjà contacté).
               </p>
             )}
           </div>

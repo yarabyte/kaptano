@@ -4,6 +4,8 @@ export const MANUAL_SEND_JITTER_MIN_MS = 3_000;
 export const MANUAL_SEND_JITTER_MAX_MS = 8_000;
 export const MAX_SEND_ATTEMPTS = 3;
 export const DAILY_SEND_CAP = 200;
+/** Maximum d'envois WhatsApp par lead et par jour (capture + campagnes). */
+export const MAX_MESSAGE_JOBS_PER_LEAD_PER_DAY = 3;
 export const DISPATCH_CRON = "*/15 * * * *";
 
 /** Presets alignés sur les limites d'envoi WhatsApp Business (Meta) */
@@ -35,6 +37,17 @@ export const DEFAULT_TIMEZONE = "Africa/Douala";
 export const DEFAULT_DAILY_SEND_TIME = "18:00";
 
 export const CATALOG_BUCKET = "catalogs";
+
+/** Événements webhook Wasender enregistrés à la création / sync de session. */
+export const WASENDER_WEBHOOK_EVENTS = [
+  "session.status",
+  "message.sent",
+  "messages.update",
+  "messages.upsert",
+  "messages-personal.received",
+  "qrcode.updated",
+  "poll.results",
+] as const;
 
 export const WHATSAPP_MESSAGE_TEMPLATE =
   "Bonjour {prenom}, merci pour votre visite sur notre stand ! Voici notre catalogue : {lien}";

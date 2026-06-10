@@ -610,21 +610,29 @@ export default function WhatsappPage() {
                 <SummaryPill
                   label="Déjà contactés"
                   value={alreadyContacted}
-                  hint="Message envoyé à la capture ou via campagne"
+                  hint="Au moins un message WhatsApp envoyé"
                   accent="emerald"
                 />
                 <SummaryPill
-                  label="En attente d'envoi"
+                  label="Éligibles campagne"
                   value={eligible}
-                  hint="Éligibles à un envoi manuel"
+                  hint="Moins de 3 messages WhatsApp envoyés aujourd'hui"
                   accent="primary"
                 />
               </div>
 
               {totalWithOptIn > 0 && eligible === 0 && (
                 <p className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-sm text-blue-950">
-                  Vos leads ont déjà reçu un message WhatsApp. L&apos;envoi manuel sert à
-                  relancer ceux qui n&apos;ont pas encore été contactés.
+                  Tous vos leads ont atteint le plafond de 3 messages WhatsApp pour aujourd&apos;hui.
+                  Réessayez demain ou capturez de nouveaux contacts.
+                </p>
+              )}
+
+              {totalWithOptIn > 0 && eligible > 0 && (
+                <p className="rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-950">
+                  Chaque lead peut recevoir jusqu&apos;à 3 messages par jour (remerciement +
+                  campagnes). {eligible} lead{eligible !== 1 ? "s" : ""} encore éligible
+                  {eligible !== 1 ? "s" : ""}.
                 </p>
               )}
 
@@ -736,8 +744,8 @@ export default function WhatsappPage() {
 
               {eligible === 0 && (
                 <p className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-sm text-blue-950">
-                  Aucun lead éligible pour ce filtre. Modifiez le stand à l&apos;étape 1 ou
-                  capturez de nouveaux contacts.
+                  Aucun lead éligible (plafond de 3 messages/lead/jour atteint pour ce filtre).
+                  Modifiez le stand à l&apos;étape 1 ou réessayez demain.
                 </p>
               )}
 

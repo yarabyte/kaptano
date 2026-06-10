@@ -3,7 +3,7 @@ import { createLeadSchema, leadFiltersSchema } from "@kaptano/shared";
 import type { Prisma } from "@kaptano/db";
 import { prisma } from "@/lib/prisma";
 import { upsertLead } from "@/lib/leads/upsert-lead";
-import { sendCaptureThankYou } from "@/lib/leads/send-capture-thank-you";
+import { scheduleCaptureThankYou } from "@/lib/leads/send-capture-thank-you";
 import { QuotaExceededError } from "@/lib/leads/check-quota";
 import { getSessionUser, requireTenantContext } from "@/lib/auth";
 
@@ -121,15 +121,15 @@ export async function POST(request: Request) {
   try {
     const result = await upsertLead(tenantId, input, standId);
 
-    let whatsappSent = false;
+    let whatsappQueued = false;
     if (result.isNew && input.optInConsent) {
-      const thankYou = await sendCaptureThankYou(tenantId, result.lead.id);
-      whatsappSent = thankYou.sent;
+      const thankYou = await scheduleCaptureThankYou(tenantId, result.lead.id);
+      whatsappQueued = thankYou.queued;
     }
 
     return NextResponse.json({
       success: true,
-      data: { ...result.lead, isNew: result.isNew, whatsappSent },
+      data: { ...result.lead, isNew: result.isNew, whatsappQueued },
     });
   } catch (err) {
     if (err instanceof QuotaExceededError) {

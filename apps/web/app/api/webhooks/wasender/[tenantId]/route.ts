@@ -9,6 +9,7 @@ import {
   type PollResultsData,
 } from "wasenderapi";
 import { prisma } from "@/lib/prisma";
+import { handleIncomingMessageWebhookEvent } from "@/lib/whatsapp/handle-incoming-webhook";
 import {
   handleMessageSentWebhook,
   handlePollResultsWebhook,
@@ -119,6 +120,11 @@ export async function POST(
           if (!messageId || !updateStatus) continue;
           await updateMessageJobStatus(tenantId, messageId, updateStatus);
         }
+        break;
+      }
+      case WasenderWebhookEventType.MessagesPersonalReceived:
+      case WasenderWebhookEventType.MessagesUpsert: {
+        await handleIncomingMessageWebhookEvent(event.data, tenantId);
         break;
       }
       case WasenderWebhookEventType.SessionStatus: {

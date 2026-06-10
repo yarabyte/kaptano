@@ -1,4 +1,5 @@
 import type { Prisma } from "@kaptano/db";
+import { getLeadIdsAtDailyMessageCap } from "@kaptano/db";
 import { prisma } from "@/lib/prisma";
 import { getTenantDailySendCap } from "@/lib/whatsapp/rate-limits";
 
@@ -8,14 +9,17 @@ export type ManualDispatchFilters = {
   to?: string;
 };
 
-export function buildEligibleLeadsWhere(
+/** Leads éligibles : opt-in et moins de 3 envois WhatsApp ce jour (par lead). */
+export async function buildEligibleLeadsWhere(
   tenantId: string,
   filters?: ManualDispatchFilters
-): Prisma.LeadWhereInput {
+): Promise<Prisma.LeadWhereInput> {
+  const atCap = await getLeadIdsAtDailyMessageCap(tenantId);
+
   const where: Prisma.LeadWhereInput = {
     tenantId,
     optInConsent: true,
-    messageJobs: { none: {} },
+    ...(atCap.length > 0 ? { id: { notIn: atCap } } : {}),
   };
 
   if (filters?.standId) {
@@ -36,7 +40,7 @@ export async function countEligibleLeads(
   filters?: ManualDispatchFilters
 ): Promise<number> {
   return prisma.lead.count({
-    where: buildEligibleLeadsWhere(tenantId, filters),
+    where: await buildEligibleLeadsWhere(tenantId, filters),
   });
 }
 
@@ -156,7 +160,11 @@ export async function getLeadWhatsAppSummary(
     prisma.lead.count({
       where: {
         ...baseWhere,
-        messageJobs: { some: {} },
+        messageJobs: {
+          some: {
+            status: { in: ["SENT", "DELIVERED", "READ"] },
+          },
+        },
       },
     }),
     countEligibleLeads(tenantId, filters),

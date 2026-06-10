@@ -30,7 +30,7 @@ export async function runManualDispatch(
   }
 
   const leads = await prisma.lead.findMany({
-    where: buildEligibleLeadsWhere(tenantId, filters),
+    where: await buildEligibleLeadsWhere(tenantId, filters),
     orderBy: { capturedAt: "asc" },
     take: remaining,
   });

@@ -1,16 +1,9 @@
 import QRCode from "qrcode";
+import { WASENDER_WEBHOOK_EVENTS } from "@kaptano/shared";
 import { WasenderAPIError } from "wasenderapi";
 import { createAccountWasenderClient } from "./create-client";
 
 const ACCOUNT_TOKEN = process.env.WASENDER_ACCOUNT_TOKEN ?? "";
-
-const WEBHOOK_EVENTS = [
-  "session.status",
-  "message.sent",
-  "messages.update",
-  "qrcode.updated",
-  "poll.results",
-];
 
 export type SessionCreateResult = {
   id: string;
@@ -75,7 +68,7 @@ export async function createSharedWhatsappSession(
       log_messages: true,
       webhook_url: webhookUrl,
       webhook_enabled: true,
-      webhook_events: WEBHOOK_EVENTS,
+      webhook_events: [...WASENDER_WEBHOOK_EVENTS],
     });
 
     const data = response.data as typeof response.data & SessionWithSecrets;

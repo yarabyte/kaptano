@@ -2,8 +2,9 @@ import { cache } from "react";
 import { effectivePlanTier, usesSharedWhatsapp } from "@kaptano/shared";
 import type { PlanTier, SessionStatus, SubscriptionStatus } from "@kaptano/db";
 import { prisma } from "@/lib/prisma";
+import { SHARED_WHATSAPP_SESSION_ID } from "./constants";
 
-export const SHARED_WHATSAPP_SESSION_ID = "default";
+export { SHARED_WHATSAPP_SESSION_ID };
 
 export type WhatsappMode = "shared" | "own";
 
