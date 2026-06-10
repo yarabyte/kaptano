@@ -5,17 +5,13 @@ import Link from "next/link";
 import {
   MessageCircle,
   RefreshCw,
-  Upload,
   Wifi,
   WifiOff,
   MessageSquare,
-  ImageIcon,
-  FileText,
   ListChecks,
   Send,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
   BarChart3,
   Eye,
   XCircle,
@@ -26,15 +22,24 @@ import {
   getDefaultMessageConfig,
   type WhatsappMessageType,
   type WhatsappMessageConfig,
-  type DocumentMessageConfig,
 } from "@kaptano/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DashboardPageSkeleton } from "@/components/dashboard/page-loading";
+import {
+  WhatsappMessageFormatEditor,
+  getMessagePreview,
+  getMessageTypeLabel,
+  validateMessageSettings,
+} from "@/components/dashboard/whatsapp-message-format-editor";
+import {
+  WhatsappStepIndicator,
+  type WizardStep,
+} from "@/components/dashboard/whatsapp-step-indicator";
+import { uploadFormDataWithProgress } from "@/lib/upload-with-progress";
 import { cn } from "@/lib/utils";
 
 type Session = { status: string; phoneNumber: string | null };
@@ -89,22 +94,12 @@ type PollResultView = {
   updatedAt: string | null;
 };
 
-const MESSAGE_TYPES = [
-  { type: "TEXT" as const, label: "Texte", icon: MessageSquare, accent: "text-blue-600 bg-blue-50 border-blue-200" },
-  { type: "IMAGE" as const, label: "Image", icon: ImageIcon, accent: "text-violet-600 bg-violet-50 border-violet-200" },
-  { type: "DOCUMENT" as const, label: "Document", icon: FileText, accent: "text-amber-600 bg-amber-50 border-amber-200" },
-  { type: "POLL" as const, label: "Sondage", icon: ListChecks, accent: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-];
-
 const SESSION_STATUS: Record<string, { label: string; variant: "success" | "secondary" | "destructive" }> = {
   CONNECTED: { label: "Connecté", variant: "success" },
   PENDING: { label: "En attente", variant: "secondary" },
   DISCONNECTED: { label: "Déconnecté", variant: "destructive" },
   EXPIRED: { label: "Expiré", variant: "destructive" },
 };
-
-const textareaClass =
-  "flex min-h-[100px] w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export default function WhatsappPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -123,16 +118,21 @@ export default function WhatsappPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [defaultCatalog, setDefaultCatalog] = useState<DefaultCatalog | null>(null);
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentName, setDocumentName] = useState("Catalogue");
-  const [uploading, setUploading] = useState(false);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentUploadProgress, setDocumentUploadProgress] = useState<number | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState<number | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const [whatsappMode, setWhatsappMode] = useState<WhatsappMode>("own");
   const [effectivePlanTier, setEffectivePlanTier] = useState<string>("FREE");
-  const [activeTab, setActiveTab] = useState<"connection" | "format">("format");
   const [polls, setPolls] = useState<PollResultView[]>([]);
+  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
+  const [maxWizardStep, setMaxWizardStep] = useState<WizardStep>(1);
+  const [connectionOpen, setConnectionOpen] = useState(false);
 
   const isSharedMode = whatsappMode === "shared";
   const connected = session?.status === "CONNECTED";
@@ -185,7 +185,16 @@ export default function WhatsappPage() {
     setEffectivePlanTier(data.effectivePlanTier ?? "FREE");
     setSession(data.session);
     setSettings(data.settings);
-    setActiveTab(mode === "shared" ? "format" : "connection");
+    if (
+      data.settings.messageType === "IMAGE" &&
+      "imageUrl" in data.settings.messageConfig
+    ) {
+      const imageUrl = data.settings.messageConfig.imageUrl;
+      if (imageUrl && !imageUrl.includes("example.com")) {
+        setImagePreviewUrl(imageUrl);
+      }
+    }
+    setConnectionOpen(data.session?.status !== "CONNECTED");
     setDefaultCatalog(data.defaultCatalog);
     setStands(standsData.stands ?? []);
     setPageLoading(false);
@@ -266,34 +275,113 @@ export default function WhatsappPage() {
     setSettings({ ...settings, messageConfig: { ...settings.messageConfig, ...patch } });
   }
 
-  async function uploadDocument() {
-    if (!documentFile || !settings) return;
-    setUploading(true);
+  async function uploadDocumentFile(file: File, nameOverride?: string) {
+    if (!settings) return;
+
+    setDocumentUploading(true);
+    setDocumentUploadProgress(0);
     setError(null);
+
+    const uploadName =
+      nameOverride?.trim() ||
+      documentName.trim() ||
+      file.name.replace(/\.pdf$/i, "") ||
+      "Catalogue";
+
     const formData = new FormData();
-    formData.append("file", documentFile);
-    formData.append("name", documentName.trim() || "Catalogue");
+    formData.append("file", file);
+    formData.append("name", uploadName);
     formData.append("isDefault", "true");
 
-    const res = await fetch("/api/catalogs", { method: "POST", body: formData });
-    const data = (await res.json()) as { error?: string; catalog?: DefaultCatalog };
-    setUploading(false);
-    if (!res.ok) {
-      setError(data.error ?? "Échec de l'upload");
-      return;
+    try {
+      const result = await uploadFormDataWithProgress<{
+        error?: string;
+        catalog?: DefaultCatalog;
+      }>({
+        url: "/api/catalogs",
+        formData,
+        onProgress: setDocumentUploadProgress,
+      });
+
+      if (!result.ok) {
+        setError(result.data.error ?? "Échec de l'upload");
+        return;
+      }
+
+      setDefaultCatalog(result.data.catalog ?? null);
+      setSettings({
+        ...settings,
+        messageType: "DOCUMENT",
+        messageConfig: { ...settings.messageConfig, useCatalog: true },
+      });
+      setSaveMessage("Document chargé");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Échec de l'upload");
+    } finally {
+      setDocumentUploading(false);
+      setDocumentUploadProgress(null);
     }
-    setDocumentFile(null);
-    setDefaultCatalog(data.catalog ?? null);
-    setSettings({
-      ...settings,
-      messageType: "DOCUMENT",
-      messageConfig: { ...settings.messageConfig, useCatalog: true },
-    });
-    setSaveMessage("Document chargé — enregistrez le format");
   }
 
-  async function saveMessageConfig() {
+  function handleDocumentFileSelect(file: File | null) {
+    if (!file) return;
+    const baseName = file.name.replace(/\.pdf$/i, "") || "Catalogue";
+    const nextName =
+      !documentName.trim() || documentName === "Catalogue" ? baseName : documentName;
+    setDocumentName(nextName);
+    void uploadDocumentFile(file, nextName);
+  }
+
+  async function uploadImageFile(file: File) {
     if (!settings) return;
+
+    const localPreview = URL.createObjectURL(file);
+    setImagePreviewUrl(localPreview);
+    setImageUploading(true);
+    setImageUploadProgress(0);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const result = await uploadFormDataWithProgress<{
+        error?: string;
+        url?: string;
+      }>({
+        url: "/api/whatsapp/media",
+        formData,
+        onProgress: setImageUploadProgress,
+      });
+
+      if (!result.ok || !result.data.url) {
+        setError(result.data.error ?? "Échec de l'upload image");
+        URL.revokeObjectURL(localPreview);
+        setImagePreviewUrl(null);
+        return;
+      }
+
+      updateConfig({ imageUrl: result.data.url });
+      setImagePreviewUrl(result.data.url);
+      URL.revokeObjectURL(localPreview);
+      setSaveMessage("Image chargée");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Échec de l'upload image");
+      URL.revokeObjectURL(localPreview);
+      setImagePreviewUrl(null);
+    } finally {
+      setImageUploading(false);
+      setImageUploadProgress(null);
+    }
+  }
+
+  function handleImageFileSelect(file: File | null) {
+    if (!file) return;
+    void uploadImageFile(file);
+  }
+
+  async function saveMessageConfig(): Promise<boolean> {
+    if (!settings) return false;
     setSaving(true);
     setSaveMessage(null);
     setError(null);
@@ -312,10 +400,55 @@ export default function WhatsappPage() {
     setSaving(false);
     if (!res.ok) {
       setError(data.error ?? "Erreur lors de l'enregistrement");
-      return;
+      return false;
     }
     if (data.settings) setSettings(data.settings);
     setSaveMessage("Format de message enregistré");
+    return true;
+  }
+
+  function goToWizardStep(step: WizardStep) {
+    if (step <= maxWizardStep) {
+      setWizardStep(step);
+      setError(null);
+      setSaveMessage(null);
+    }
+  }
+
+  function handleNextFromStep1() {
+    setMaxWizardStep((current) => Math.max(current, 2) as WizardStep);
+    setWizardStep(2);
+    setError(null);
+    setSaveMessage(null);
+  }
+
+  async function handleNextFromStep2() {
+    if (!settings) return;
+    if (documentUploading || imageUploading) {
+      setError("Attendez la fin du chargement du fichier.");
+      return;
+    }
+    const validationError = validateMessageSettings(
+      settings.messageType,
+      settings.messageConfig,
+      defaultCatalog
+    );
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    const saved = await saveMessageConfig();
+    if (!saved) return;
+    setMaxWizardStep((current) => Math.max(current, 3) as WizardStep);
+    setWizardStep(3);
+  }
+
+  function handleWizardBack() {
+    if (wizardStep > 1) {
+      setWizardStep((current) => (current - 1) as WizardStep);
+      setError(null);
+      setSaveMessage(null);
+    }
   }
 
   async function startDispatch() {
@@ -354,17 +487,9 @@ export default function WhatsappPage() {
     }
   }
 
-  const pollOptions =
-    settings?.messageType === "POLL" && "options" in settings.messageConfig
-      ? settings.messageConfig.options
-      : [];
-
-  const docConfig =
-    settings?.messageType === "DOCUMENT"
-      ? (settings.messageConfig as DocumentMessageConfig)
-      : null;
-
   const isSending = batchProgress?.status === "RUNNING";
+  const selectedStand = stands.find((stand) => stand.id === standFilter);
+  const standLabel = selectedStand?.name ?? "Tous les stands";
 
   if (pageLoading) {
     return <DashboardPageSkeleton />;
@@ -407,177 +532,344 @@ export default function WhatsappPage() {
         </div>
       )}
 
-      {/* Envoi manuel */}
+      {/* Assistant campagne — 3 étapes */}
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-white shadow-sm">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <BarChart3 className="h-5 w-5" />
+        <CardHeader className="space-y-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="font-heading text-lg">Nouvelle campagne</CardTitle>
+                <CardDescription>
+                  Ciblez vos leads, configurez le message puis lancez l&apos;envoi
+                  {stats ? ` · ${stats.remainingToday} envois restants aujourd'hui` : ""}
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="font-heading text-lg">Envoi manuel</CardTitle>
-              <CardDescription>
-                Relancez l&apos;envoi du catalogue pour les leads pas encore contactés
-                {stats ? ` · ${stats.remainingToday} envois restants aujourd'hui` : ""}
-              </CardDescription>
-            </div>
+            <Badge variant={status?.variant ?? "secondary"} className="w-fit shrink-0">
+              {connected
+                ? isSharedMode
+                  ? "Numéro Kaptano connecté"
+                  : "WhatsApp connecté"
+                : (status?.label ?? "Non connecté")}
+            </Badge>
           </div>
+          <WhatsappStepIndicator
+            currentStep={wizardStep}
+            maxReached={maxWizardStep}
+            onStepClick={goToWizardStep}
+          />
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SummaryPill
-              label="Leads enregistrés"
-              value={totalWithOptIn}
-              hint="Avec consentement WhatsApp"
-            />
-            <SummaryPill
-              label="Déjà contactés"
-              value={alreadyContacted}
-              hint="Message envoyé à la capture ou via campagne"
-              accent="emerald"
-            />
-            <SummaryPill
-              label="En attente d'envoi"
-              value={eligible}
-              hint="Éligibles à un envoi manuel"
-              accent="primary"
-            />
-          </div>
 
-          {totalWithOptIn > 0 && eligible === 0 && (
-            <p className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-sm text-blue-950">
-              Vos leads ont déjà reçu un message WhatsApp (remerciement automatique à la
-              capture). L&apos;envoi manuel sert à relancer ceux qui n&apos;ont pas encore été
-              contactés.
-            </p>
-          )}
-
-          {totalWithOptIn === 0 && (
-            <p className="rounded-lg border border-dashed border-border/80 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              Aucun lead avec opt-in pour le moment. Capturez des visiteurs depuis la page{" "}
-              <Link href="/dashboard/capture" className="font-medium text-primary underline-offset-2 hover:underline">
-                Capture agent
-              </Link>{" "}
-              ou via le QR code de vos stands.
-            </p>
-          )}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            {stands.length > 0 && (
-              <div className="flex-1 space-y-2">
-                <Label htmlFor="standFilter">Filtrer par stand</Label>
-                <select
-                  id="standFilter"
-                  value={standFilter}
-                  onChange={(e) => setStandFilter(e.target.value)}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  disabled={isSending}
-                >
-                  <option value="">Tous les stands</option>
-                  {stands.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <Button
-              onClick={startDispatch}
-              disabled={!connected || dispatching || isSending || eligible === 0}
-              className="h-11 px-8 sm:shrink-0"
-              size="lg"
-            >
-              <Send className="mr-2 h-4 w-4" />
-              {dispatching ? "Lancement…" : isSending ? "Envoi en cours…" : `Envoyer à ${eligible} lead${eligible !== 1 ? "s" : ""}`}
-            </Button>
-          </div>
-
-          {!connected && (
-            <p className="text-sm text-amber-700">
-              {isSharedMode
-                ? "Le numéro WhatsApp partagé Kaptano n'est pas disponible. Contactez le support ou passez au plan Growth."
-                : "Connectez WhatsApp avant de lancer un envoi."}
-            </p>
-          )}
-
-          {batchProgress && (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-background p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">
-                  {batchProgress.status === "RUNNING"
-                    ? "Progression de l'envoi"
-                    : batchProgress.status === "COMPLETED"
-                      ? "Envoi terminé"
-                      : "Envoi terminé avec erreurs"}
-                </span>
-                <span className="text-muted-foreground">
-                  {batchProgress.progress}% · {batchProgress.sent + batchProgress.delivered + batchProgress.read + batchProgress.failed}/{batchProgress.total}
-                </span>
+        <CardContent className="space-y-6">
+          {wizardStep === 1 && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="font-heading text-lg font-semibold">Étape 1 — Filtrer par stand</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Choisissez les leads à cibler pour cette campagne.
+                </p>
               </div>
 
-              <div className="h-3 overflow-hidden rounded-full bg-muted">
-                <div className="flex h-full transition-all duration-500">
-                  <div
-                    className="bg-primary transition-all"
-                    style={{ width: `${(batchProgress.sent / batchProgress.total) * 100}%` }}
-                  />
-                  <div
-                    className="bg-emerald-500 transition-all"
-                    style={{ width: `${(batchProgress.delivered / batchProgress.total) * 100}%` }}
-                  />
-                  <div
-                    className="bg-blue-500 transition-all"
-                    style={{ width: `${(batchProgress.read / batchProgress.total) * 100}%` }}
-                  />
-                  <div
-                    className="bg-destructive transition-all"
-                    style={{ width: `${(batchProgress.failed / batchProgress.total) * 100}%` }}
-                  />
+              {stands.length > 0 ? (
+                <div className="space-y-2">
+                  <Label htmlFor="standFilter">Stand</Label>
+                  <select
+                    id="standFilter"
+                    value={standFilter}
+                    onChange={(e) => setStandFilter(e.target.value)}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    disabled={isSending}
+                  >
+                    <option value="">Tous les stands</option>
+                    {stands.map((stand) => (
+                      <option key={stand.id} value={stand.id}>
+                        {stand.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border/80 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  Aucun stand actif.{" "}
+                  <Link href="/dashboard/stands" className="font-medium text-primary underline-offset-2 hover:underline">
+                    Créez un stand
+                  </Link>{" "}
+                  pour filtrer par emplacement.
+                </p>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <SummaryPill
+                  label="Leads enregistrés"
+                  value={totalWithOptIn}
+                  hint="Avec consentement WhatsApp"
+                />
+                <SummaryPill
+                  label="Déjà contactés"
+                  value={alreadyContacted}
+                  hint="Message envoyé à la capture ou via campagne"
+                  accent="emerald"
+                />
+                <SummaryPill
+                  label="En attente d'envoi"
+                  value={eligible}
+                  hint="Éligibles à un envoi manuel"
+                  accent="primary"
+                />
               </div>
 
-              <div className="flex flex-wrap gap-3 text-xs">
-                <ProgressChip label="En attente" count={batchProgress.queued + batchProgress.sending} color="bg-muted text-muted-foreground" />
-                <ProgressChip label="Envoyés" count={batchProgress.sent} color="bg-primary/10 text-primary" />
-                <ProgressChip label="Livrés" count={batchProgress.delivered} color="bg-emerald-50 text-emerald-700" />
-                <ProgressChip label="Lus" count={batchProgress.read} color="bg-blue-50 text-blue-700" />
-                <ProgressChip label="Échecs" count={batchProgress.failed} color="bg-destructive/10 text-destructive" />
+              {totalWithOptIn > 0 && eligible === 0 && (
+                <p className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-sm text-blue-950">
+                  Vos leads ont déjà reçu un message WhatsApp. L&apos;envoi manuel sert à
+                  relancer ceux qui n&apos;ont pas encore été contactés.
+                </p>
+              )}
+
+              {totalWithOptIn === 0 && (
+                <p className="rounded-lg border border-dashed border-border/80 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                  Aucun lead avec opt-in pour le moment. Capturez des visiteurs depuis{" "}
+                  <Link href="/dashboard/capture" className="font-medium text-primary underline-offset-2 hover:underline">
+                    Capture agent
+                  </Link>{" "}
+                  ou via le QR code de vos stands.
+                </p>
+              )}
+
+              <div className="flex justify-end">
+                <Button onClick={handleNextFromStep1} className="h-11 px-8">
+                  Continuer
+                </Button>
               </div>
+            </div>
+          )}
+
+          {wizardStep === 2 && settings && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="font-heading text-lg font-semibold">Étape 2 — Format du message</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Choisissez le type de message et personnalisez le contenu envoyé aux leads.
+                </p>
+              </div>
+
+              <WhatsappMessageFormatEditor
+                messageType={settings.messageType}
+                messageConfig={settings.messageConfig}
+                defaultCatalog={defaultCatalog}
+                documentName={documentName}
+                documentUploading={documentUploading}
+                documentUploadProgress={documentUploadProgress}
+                imageUploading={imageUploading}
+                imageUploadProgress={imageUploadProgress}
+                imagePreviewUrl={imagePreviewUrl}
+                onChangeType={changeMessageType}
+                onUpdateConfig={updateConfig}
+                onDocumentNameChange={setDocumentName}
+                onDocumentFileSelect={handleDocumentFileSelect}
+                onImageFileSelect={handleImageFileSelect}
+              />
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <Button variant="outline" onClick={handleWizardBack} className="h-11">
+                  Retour
+                </Button>
+                <Button
+                  onClick={() => void handleNextFromStep2()}
+                  disabled={saving || documentUploading || imageUploading}
+                  className="h-11 px-8"
+                >
+                  {saving ? "Enregistrement…" : "Continuer vers le récapitulatif"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 3 && settings && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="font-heading text-lg font-semibold">Étape 3 — Récapitulatif et envoi</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Vérifiez les paramètres avant de lancer la campagne.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <RecapItem label="Stand ciblé" value={standLabel} />
+                <RecapItem
+                  label="Leads éligibles"
+                  value={`${eligible} lead${eligible !== 1 ? "s" : ""}`}
+                  highlight={eligible > 0}
+                />
+                <RecapItem
+                  label="Type de message"
+                  value={getMessageTypeLabel(settings.messageType)}
+                />
+                <RecapItem
+                  label="Envois restants aujourd'hui"
+                  value={stats ? String(stats.remainingToday) : "—"}
+                />
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Aperçu du message
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm">
+                  {getMessagePreview(
+                    settings.messageType,
+                    settings.messageConfig,
+                    defaultCatalog
+                  )}
+                </p>
+              </div>
+
+              {!connected && (
+                <p className="rounded-lg border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {isSharedMode
+                    ? "Le numéro WhatsApp partagé Kaptano n'est pas disponible. Contactez le support ou passez au plan Growth."
+                    : "Connectez WhatsApp avant de lancer un envoi (voir la section ci-dessous)."}
+                </p>
+              )}
+
+              {eligible === 0 && (
+                <p className="rounded-lg border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-sm text-blue-950">
+                  Aucun lead éligible pour ce filtre. Modifiez le stand à l&apos;étape 1 ou
+                  capturez de nouveaux contacts.
+                </p>
+              )}
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Button variant="outline" onClick={handleWizardBack} className="h-11" disabled={isSending}>
+                  Retour
+                </Button>
+                <Button
+                  onClick={startDispatch}
+                  disabled={!connected || dispatching || isSending || eligible === 0}
+                  className="h-11 px-8"
+                  size="lg"
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {dispatching
+                    ? "Lancement…"
+                    : isSending
+                      ? "Envoi en cours…"
+                      : `Envoyer à ${eligible} lead${eligible !== 1 ? "s" : ""}`}
+                </Button>
+              </div>
+
+              {batchProgress && (
+                <div className="space-y-3 rounded-xl border border-border/60 bg-background p-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">
+                      {batchProgress.status === "RUNNING"
+                        ? "Progression de l'envoi"
+                        : batchProgress.status === "COMPLETED"
+                          ? "Envoi terminé"
+                          : "Envoi terminé avec erreurs"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {batchProgress.progress}% ·{" "}
+                      {batchProgress.sent +
+                        batchProgress.delivered +
+                        batchProgress.read +
+                        batchProgress.failed}
+                      /{batchProgress.total}
+                    </span>
+                  </div>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-muted">
+                    <div className="flex h-full transition-all duration-500">
+                      <div
+                        className="bg-primary transition-all"
+                        style={{
+                          width: `${(batchProgress.sent / batchProgress.total) * 100}%`,
+                        }}
+                      />
+                      <div
+                        className="bg-emerald-500 transition-all"
+                        style={{
+                          width: `${(batchProgress.delivered / batchProgress.total) * 100}%`,
+                        }}
+                      />
+                      <div
+                        className="bg-blue-500 transition-all"
+                        style={{
+                          width: `${(batchProgress.read / batchProgress.total) * 100}%`,
+                        }}
+                      />
+                      <div
+                        className="bg-destructive transition-all"
+                        style={{
+                          width: `${(batchProgress.failed / batchProgress.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    <ProgressChip
+                      label="En attente"
+                      count={batchProgress.queued + batchProgress.sending}
+                      color="bg-muted text-muted-foreground"
+                    />
+                    <ProgressChip
+                      label="Envoyés"
+                      count={batchProgress.sent}
+                      color="bg-primary/10 text-primary"
+                    />
+                    <ProgressChip
+                      label="Livrés"
+                      count={batchProgress.delivered}
+                      color="bg-emerald-50 text-emerald-700"
+                    />
+                    <ProgressChip
+                      label="Lus"
+                      count={batchProgress.read}
+                      color="bg-blue-50 text-blue-700"
+                    />
+                    <ProgressChip
+                      label="Échecs"
+                      count={batchProgress.failed}
+                      color="bg-destructive/10 text-destructive"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* Connexion WhatsApp (hors parcours) */}
       <Card className="border-border/60 shadow-sm">
         <CardHeader className="pb-0">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={() => setConnectionOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
             <div>
-              <CardTitle className="font-heading text-lg">Configuration</CardTitle>
-              <CardDescription>Connexion WhatsApp et format des messages</CardDescription>
+              <CardTitle className="font-heading text-lg">
+                {isSharedMode ? "Numéro WhatsApp partagé" : "Connexion WhatsApp"}
+              </CardTitle>
+              <CardDescription>
+                {isSharedMode
+                  ? "Statut du numéro Kaptano utilisé pour vos envois"
+                  : "Connectez votre numéro professionnel pour envoyer des messages"}
+              </CardDescription>
             </div>
-            {activeTab === "connection" && (
-              <Badge variant={status?.variant ?? "secondary"} className="w-fit">
-                {status?.label ?? "Non configuré"}
-              </Badge>
-            )}
-          </div>
-          <div className="mt-4 flex gap-1 rounded-lg border border-border/60 bg-muted/40 p-1">
-            <TabButton
-              active={activeTab === "connection"}
-              onClick={() => setActiveTab("connection")}
-              icon={isSharedMode ? Share2 : MessageCircle}
-              label={isSharedMode ? "Numéro partagé" : "Connexion"}
-            />
-            <TabButton
-              active={activeTab === "format"}
-              onClick={() => setActiveTab("format")}
-              icon={MessageSquare}
-              label="Format du message"
-              disabled={!settings}
-            />
-          </div>
+            <Badge variant={status?.variant ?? "secondary"} className="shrink-0">
+              {status?.label ?? "Non configuré"}
+            </Badge>
+          </button>
         </CardHeader>
 
+        {connectionOpen && (
         <CardContent className="pt-6">
-          {activeTab === "connection" && isSharedMode && (
+          {isSharedMode && (
             <div className="mx-auto max-w-lg space-y-5">
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
                 <p>
@@ -638,7 +930,7 @@ export default function WhatsappPage() {
             </div>
           )}
 
-          {activeTab === "connection" && !isSharedMode && (
+          {!isSharedMode && (
             <div className="mx-auto max-w-md space-y-5">
               <div
                 className={cn(
@@ -710,143 +1002,8 @@ export default function WhatsappPage() {
               </Button>
             </div>
           )}
-
-          {activeTab === "format" && settings && (
-            <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {MESSAGE_TYPES.map(({ type, label, icon: Icon, accent }) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => changeMessageType(type)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border p-3 text-left transition-all",
-                      settings.messageType === type
-                        ? cn("border-primary/40 ring-1 ring-primary/20 shadow-sm", accent)
-                        : "border-border/60 hover:bg-muted/40"
-                    )}
-                  >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    <span className="text-sm font-medium">{label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-                {["{prenom}", "{entreprise}", "{lien}"].map((v) => (
-                  <code
-                    key={v}
-                    className="rounded-md border bg-muted/60 px-2 py-0.5 font-mono text-xs"
-                  >
-                    {v}
-                  </code>
-                ))}
-              </div>
-
-              <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                {settings.messageType === "TEXT" && "text" in settings.messageConfig && (
-                  <textarea
-                    id="textMessage"
-                    rows={4}
-                    className={textareaClass}
-                    value={settings.messageConfig.text ?? ""}
-                    onChange={(e) => updateConfig({ text: e.target.value })}
-                  />
-                )}
-
-                {settings.messageType === "IMAGE" && "imageUrl" in settings.messageConfig && (
-                  <div className="space-y-3">
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/photo.jpg"
-                      value={settings.messageConfig.imageUrl}
-                      onChange={(e) => updateConfig({ imageUrl: e.target.value })}
-                    />
-                    <Input
-                      placeholder="Légende (optionnel)"
-                      value={settings.messageConfig.text ?? ""}
-                      onChange={(e) => updateConfig({ text: e.target.value })}
-                    />
-                  </div>
-                )}
-
-                {docConfig && (
-                  <div className="space-y-4">
-                    {defaultCatalog ? (
-                      <div className="flex items-center gap-3 rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2">
-                        <FileText className="h-4 w-4 text-amber-600" />
-                        <span className="text-sm font-medium">{defaultCatalog.name}</span>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-amber-700">Aucun PDF chargé</p>
-                    )}
-                    <div className="space-y-3 rounded-xl border-2 border-dashed p-4">
-                      <Input
-                        value={documentName}
-                        onChange={(e) => setDocumentName(e.target.value)}
-                        placeholder="Nom du document"
-                      />
-                      <Input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={uploadDocument}
-                        disabled={uploading || !documentFile}
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {uploading ? "Chargement…" : "Charger le PDF"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {settings.messageType === "POLL" && "question" in settings.messageConfig && (
-                  <div className="space-y-3">
-                    <Input
-                      value={settings.messageConfig.question}
-                      onChange={(e) => updateConfig({ question: e.target.value })}
-                      placeholder="Question du sondage"
-                    />
-                    <textarea
-                      rows={4}
-                      className={textareaClass}
-                      value={pollOptions.join("\n")}
-                      onChange={(e) =>
-                        updateConfig({
-                          options: e.target.value
-                            .split("\n")
-                            .map((l) => l.trim())
-                            .filter(Boolean),
-                        })
-                      }
-                      placeholder={"Option 1\nOption 2"}
-                    />
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="multiSelect"
-                        checked={settings.messageConfig.multiSelect ?? false}
-                        onCheckedChange={(c) => updateConfig({ multiSelect: c === true })}
-                      />
-                      <Label htmlFor="multiSelect" className="font-normal">
-                        Réponses multiples
-                      </Label>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Button onClick={saveMessageConfig} disabled={saving} variant="outline">
-                {saving ? "Enregistrement…" : "Enregistrer le format"}
-              </Button>
-            </div>
-          )}
         </CardContent>
+        )}
       </Card>
 
       {(polls.length > 0 || settings?.messageType === "POLL") && (
@@ -1006,34 +1163,26 @@ function SummaryPill({
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  icon: Icon,
+function RecapItem({
   label,
-  disabled,
+  value,
+  highlight = false,
 }: {
-  active: boolean;
-  onClick: () => void;
-  icon: typeof MessageCircle;
   label: string;
-  disabled?: boolean;
+  value: string;
+  highlight?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all",
-        active
-          ? "bg-background text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-        disabled && "cursor-not-allowed opacity-50"
-      )}
-    >
-      <Icon className="h-4 w-4" />
-      <span className="hidden sm:inline">{label}</span>
-    </button>
+    <div className="rounded-xl border border-border/60 bg-background p-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-1 text-lg font-semibold",
+          highlight && "text-primary"
+        )}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
