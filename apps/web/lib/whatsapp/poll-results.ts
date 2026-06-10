@@ -1,10 +1,9 @@
 import type { Prisma } from "@kaptano/db";
+import type { MessageKey, PollResultEntry, PollResultsData } from "wasenderapi";
 import { prisma } from "@/lib/prisma";
 
-export type PollResultOption = {
-  name: string;
-  voters: string[];
-};
+/** Aligné sur https://wasenderapi.com/api-docs/webhooks/webhook-poll-results */
+export type { PollResultEntry, PollResultsData };
 
 export type PollSnapshot = {
   question: string;
@@ -12,33 +11,100 @@ export type PollSnapshot = {
   multiSelect?: boolean;
 };
 
+/** JID WhatsApp → E.164 (ex. 23761234567@s.whatsapp.net → +23761234567) */
 export function jidToPhone(jid: string): string | null {
-  const match = jid.match(/^(\d+)@/);
-  if (!match?.[1]) return null;
-  return `+${match[1]}`;
+  const userPart = jid.split("@")[0]?.split(":")[0];
+  if (!userPart || !/^\d+$/.test(userPart)) return null;
+  return `+${userPart}`;
 }
 
+async function findMessageJobForPollKey(key: MessageKey) {
+  if (key.id) {
+    const byId = await prisma.messageJob.findFirst({
+      where: { wasenderMessageId: key.id },
+    });
+    if (byId) return byId;
+  }
+
+  if (!key.remoteJid) return null;
+
+  const phone = jidToPhone(key.remoteJid);
+  if (!phone) return null;
+
+  const digits = phone.replace(/\D/g, "");
+  const candidates = await prisma.messageJob.findMany({
+    where: {
+      isPoll: true,
+      status: { in: ["SENT", "DELIVERED", "READ", "SENDING"] },
+    },
+    include: { lead: { select: { whatsappNumber: true } } },
+    orderBy: { sentAt: "desc" },
+    take: 20,
+  });
+
+  return (
+    candidates.find(
+      (job) => job.lead.whatsappNumber.replace(/\D/g, "") === digits
+    ) ?? null
+  );
+}
+
+/**
+ * Webhook message.sent — synchronise data.key.id (ID WhatsApp) avec le MessageJob.
+ * L'API send-message renvoie msgId numérique, mais poll.results utilise key.id.
+ * @see https://wasenderapi.com/api-docs/webhooks/webhook-message-sent
+ */
+export async function handleMessageSentWebhook(data: {
+  key?: MessageKey;
+}): Promise<void> {
+  const key = data.key;
+  if (!key?.id || !key.fromMe || !key.remoteJid) return;
+
+  const phone = jidToPhone(key.remoteJid);
+  if (!phone) return;
+
+  const job = await prisma.messageJob.findFirst({
+    where: {
+      status: { in: ["SENT", "DELIVERED", "READ", "SENDING"] },
+      lead: { whatsappNumber: phone },
+      sentAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { sentAt: "desc" },
+  });
+
+  if (!job || job.wasenderMessageId === key.id) return;
+
+  const storedId = job.wasenderMessageId ?? "";
+  const isNumericApiId = /^\d+$/.test(storedId);
+
+  if (isNumericApiId || storedId !== key.id) {
+    await prisma.messageJob.update({
+      where: { id: job.id },
+      data: { wasenderMessageId: key.id },
+    });
+  }
+}
+
+/**
+ * Webhook poll.results — enregistre les votes.
+ * @see https://wasenderapi.com/api-docs/webhooks/webhook-poll-results
+ */
 export async function handlePollResultsWebhook(
-  data: {
-    key?: { id?: string };
-    pollResult?: PollResultOption[];
-  },
+  data: PollResultsData,
   timestamp?: number
 ): Promise<void> {
   const messageId = data.key?.id;
-  if (!messageId || !data.pollResult) return;
+  if (!messageId || !data.pollResult?.length) return;
 
-  const job = await prisma.messageJob.findFirst({
-    where: { wasenderMessageId: messageId },
-  });
-
+  const job = await findMessageJobForPollKey(data.key);
   if (!job) return;
 
   await prisma.messageJob.update({
     where: { id: job.id },
     data: {
       isPoll: true,
-      pollResults: data.pollResult as Prisma.InputJsonValue,
+      wasenderMessageId: messageId,
+      pollResults: data.pollResult as unknown as Prisma.InputJsonValue,
       pollResultsAt: timestamp ? new Date(timestamp) : new Date(),
     },
   });
@@ -76,7 +142,7 @@ export async function getTenantPollResults(tenantId: string) {
 
   return jobs.map((job) => {
     const snapshot = job.pollSnapshot as PollSnapshot | null;
-    const rawResults = (job.pollResults as PollResultOption[] | null) ?? [];
+    const rawResults = (job.pollResults as PollResultEntry[] | null) ?? [];
 
     const options = rawResults.map((option) => {
       const voters = option.voters.map((jid) => {
