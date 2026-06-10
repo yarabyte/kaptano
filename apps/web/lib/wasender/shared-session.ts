@@ -46,10 +46,10 @@ function handleError(err: unknown): never {
       err.apiMessage.toLowerCase().includes("personal access token")
     ) {
       throw new Error(
-        "Token Wasender invalide ou expiré. Régénérez un Personal Access Token sur wasenderapi.com."
+        "Token API WhatsApp invalide ou expiré. Vérifiez la configuration du compte plateforme."
       );
     }
-    throw new Error(`Wasender: ${err.apiMessage}`);
+    throw new Error(`WhatsApp: ${err.apiMessage}`);
   }
   throw err;
 }
@@ -84,7 +84,7 @@ export async function createSharedWhatsappSession(
 
     if (!apiKey || !webhookSecret) {
       throw new Error(
-        "Réponse Wasender incomplète (api_key ou webhook_secret manquant)"
+        "Réponse API WhatsApp incomplète (clés de session manquantes)"
       );
     }
 

@@ -36,7 +36,7 @@ export const platformNav: PlatformNavItem[] = [
     href: "/platform/rate-limits",
     label: "Rate limits",
     icon: "gauge",
-    description: "Limites Wasender et monitoring des envois",
+    description: "Limites Meta/WhatsApp et monitoring des envois",
   },
   {
     href: "/platform/payments",

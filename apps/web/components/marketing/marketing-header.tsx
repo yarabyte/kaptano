@@ -14,7 +14,57 @@ const sectionLinks = [
   { href: "/pricing", label: "Tarifs" },
 ];
 
-export function MarketingHeader() {
+type MarketingHeaderProps = {
+  isAuthenticated: boolean;
+  dashboardHref: string;
+  signOut: () => Promise<void>;
+};
+
+function AuthButtons({
+  isAuthenticated,
+  dashboardHref,
+  signOut,
+  className,
+  onNavigate,
+}: MarketingHeaderProps & { className?: string; onNavigate?: () => void }) {
+  if (isAuthenticated) {
+    return (
+      <div className={cn("flex items-center gap-1 sm:gap-2", className)}>
+        <Link href={dashboardHref} onClick={onNavigate}>
+          <Button size="sm" className="shadow-md shadow-primary/25">
+            Dashboard
+          </Button>
+        </Link>
+        <form action={signOut}>
+          <Button type="submit" variant="ghost" size="sm" className="font-medium">
+            Déconnexion
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex items-center gap-1 sm:gap-2", className)}>
+      <Link href="/login" onClick={onNavigate}>
+        <Button variant="ghost" size="sm" className="font-medium">
+          Connexion
+        </Button>
+      </Link>
+      <Link href="/signup" onClick={onNavigate}>
+        <Button size="sm" className="shadow-md shadow-primary/25">
+          Essai gratuit
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+export function MarketingHeader({
+  isAuthenticated,
+  dashboardHref,
+  signOut,
+}: MarketingHeaderProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -37,24 +87,28 @@ export function MarketingHeader() {
               {link.label}
             </Link>
           ))}
-          <Link href="/login">
-            <Button variant="ghost" size="sm" className="font-medium">
-              Connexion
-            </Button>
-          </Link>
-          <Link href="/signup">
-            <Button size="sm" className="shadow-md shadow-primary/25">
-              Essai gratuit
-            </Button>
-          </Link>
+          <AuthButtons
+            isAuthenticated={isAuthenticated}
+            dashboardHref={dashboardHref}
+            signOut={signOut}
+          />
         </nav>
 
         <div className="flex items-center gap-2 md:hidden">
-          <Link href="/login">
-            <Button variant="ghost" size="sm" className="font-medium">
-              Connexion
-            </Button>
-          </Link>
+          {!isAuthenticated && (
+            <Link href="/login">
+              <Button variant="ghost" size="sm" className="font-medium">
+                Connexion
+              </Button>
+            </Link>
+          )}
+          {isAuthenticated && (
+            <Link href={dashboardHref}>
+              <Button size="sm" className="shadow-md shadow-primary/25">
+                Dashboard
+              </Button>
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -84,9 +138,14 @@ export function MarketingHeader() {
               {link.label}
             </Link>
           ))}
-          <Link href="/signup" onClick={() => setOpen(false)} className="pt-2">
-            <Button className="w-full shadow-md shadow-primary/25">Essai gratuit</Button>
-          </Link>
+          <div className="pt-2" onClick={() => setOpen(false)}>
+            <AuthButtons
+              isAuthenticated={isAuthenticated}
+              dashboardHref={dashboardHref}
+              signOut={signOut}
+              className="w-full flex-col gap-2 [&_a]:w-full [&_button]:w-full [&_form]:w-full"
+            />
+          </div>
         </nav>
       </div>
     </header>

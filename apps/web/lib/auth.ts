@@ -39,6 +39,7 @@ export const getSessionUser = cache(async () => {
             id: true,
             name: true,
             slug: true,
+            status: true,
             planTier: true,
             subscriptionStatus: true,
             subscriptionExpiresAt: true,
@@ -64,6 +65,14 @@ export async function requireAuth(): Promise<TenantContext> {
 
   if (user.role !== "PLATFORM_ADMIN" && !user.tenantId) {
     redirect("/login?error=no_tenant");
+  }
+
+  if (
+    user.role !== "PLATFORM_ADMIN" &&
+    user.tenant &&
+    user.tenant.status !== "active"
+  ) {
+    redirect("/login?error=tenant_inactive");
   }
 
   return {

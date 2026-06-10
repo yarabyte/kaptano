@@ -36,6 +36,10 @@ export default async function DashboardLayout({
     redirect("/login?error=no_tenant");
   }
 
+  if (user.tenant?.status !== "active") {
+    redirect("/login?error=tenant_inactive");
+  }
+
   const ctx = {
     tenantId: user.tenantId,
     userId: user.id,

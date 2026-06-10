@@ -36,7 +36,7 @@ export async function PATCH(request: Request) {
   const mode = body.wasenderPlanMode ?? current.wasenderPlanMode;
 
   if (body.wasenderPlanMode && !VALID_MODES.includes(body.wasenderPlanMode)) {
-    return NextResponse.json({ error: "Mode Wasender invalide" }, { status: 400 });
+    return NextResponse.json({ error: "Mode de limitation invalide" }, { status: 400 });
   }
 
   const preset = presetForMode(mode);
@@ -68,7 +68,7 @@ export async function PATCH(request: Request) {
 
   if (data.maxConcurrentSends < 1 || data.maxConcurrentSends > 5) {
     return NextResponse.json(
-      { error: "Concurrence max : entre 1 et 5 (recommandation Wasender)" },
+      { error: "Concurrence max : entre 1 et 5 (recommandation Meta/WhatsApp)" },
       { status: 400 }
     );
   }

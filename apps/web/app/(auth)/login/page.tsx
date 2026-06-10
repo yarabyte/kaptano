@@ -14,12 +14,14 @@ export default function LoginPage() {
   const router = useRouter();
   const [registered, setRegistered] = useState(false);
   const [noTenant, setNoTenant] = useState(false);
+  const [tenantInactive, setTenantInactive] = useState(false);
   const [email, setEmail] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setRegistered(params.get("registered") === "1");
     setNoTenant(params.get("error") === "no_tenant");
+    setTenantInactive(params.get("error") === "tenant_inactive");
   }, []);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +93,13 @@ export default function LoginPage() {
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                   Votre compte n&apos;est pas encore associé à un espace exposant. Contactez le
                   support.
+                </p>
+              )}
+
+              {tenantInactive && (
+                <p className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  Votre espace exposant a été désactivé. Contactez le support Kaptano pour plus
+                  d&apos;informations.
                 </p>
               )}
 

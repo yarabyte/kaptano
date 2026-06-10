@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Gauge, Timer, Shield, Users, Zap } from "lucide-react";
-import { RATE_LIMIT_SECTION } from "@/lib/legal/content";
+import { META_WHATSAPP_RATE_LIMITS_URL, RATE_LIMIT_SECTION } from "@/lib/legal/content";
 
 const highlights = [
   {
     icon: Timer,
     label: "1 envoi / 5 s",
-    detail: "Numéro partagé (protection compte Wasender)",
+    detail: "Numéro partagé (protection compte Meta)",
   },
   {
     icon: Gauge,
@@ -73,12 +73,12 @@ export function PricingRateLimits() {
           Kaptano peut suspendre ou ralentir temporairement les envois en cas de dépassement répété
           des limites ou de comportement jugé à risque.{" "}
           <Link
-            href="https://wasenderapi.com/api-docs/rate-limits/understanding-rate-limits"
+            href={META_WHATSAPP_RATE_LIMITS_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
           >
-            Documentation Wasender
+            Documentation Meta (limites WhatsApp Business)
           </Link>
           {" · "}
           <Link href="/cgu" className="text-primary hover:underline">

@@ -45,7 +45,7 @@ export default function CguPage() {
         {
           title: "5. Disponibilité et maintenance",
           paragraphs: [
-            "Kaptano est fourni en l'état. Nous nous efforçons d'assurer une haute disponibilité mais ne garantissons pas un fonctionnement ininterrompu, notamment en cas de maintenance, de panne réseau en salon ou d'indisponibilité des services tiers (WhatsApp, Wasender, hébergement).",
+            "Kaptano est fourni en l'état. Nous nous efforçons d'assurer une haute disponibilité mais ne garantissons pas un fonctionnement ininterrompu, notamment en cas de maintenance, de panne réseau en salon ou d'indisponibilité des services tiers (WhatsApp / Meta, hébergement).",
             "La PWA hors-ligne permet de stocker localement des leads en attente de synchronisation ; la responsabilité de la sauvegarde des données locales incombe à l'utilisateur de l'appareil.",
           ],
         },

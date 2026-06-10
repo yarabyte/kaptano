@@ -24,7 +24,7 @@ export async function sendWhatsappText(
     await client.sendText({ to, text });
   } catch (err) {
     if (err instanceof WasenderAPIError) {
-      throw new Error(`Wasender: ${err.apiMessage}`);
+      throw new Error(`WhatsApp: ${err.apiMessage}`);
     }
     throw err;
   }

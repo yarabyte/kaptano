@@ -161,6 +161,26 @@ export const initiatePaymentSchema = z.object({
 
 export type InitiatePaymentInput = z.infer<typeof initiatePaymentSchema>;
 
+export const platformTenantActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("set_status"),
+    status: z.enum(["active", "inactive"]),
+  }),
+  z.object({
+    action: z.literal("promote_plan"),
+    planTier: z.enum(["FREE", "STARTER", "GROWTH", "SCALE"]),
+    subscriptionDays: z.number().int().min(1).max(365).optional(),
+  }),
+  z.object({
+    action: z.literal("record_cash_payment"),
+    planTier: z.enum(["STARTER", "GROWTH", "SCALE"]),
+    amount: z.number().int().positive().optional(),
+    subscriptionDays: z.number().int().min(1).max(365).optional(),
+  }),
+]);
+
+export type PlatformTenantAction = z.infer<typeof platformTenantActionSchema>;
+
 export const createEventSchema = z.object({
   name: z.string().min(1).max(120),
   location: z.string().max(200).optional(),

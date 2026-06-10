@@ -6,7 +6,7 @@ export const MAX_SEND_ATTEMPTS = 3;
 export const DAILY_SEND_CAP = 200;
 export const DISPATCH_CRON = "*/15 * * * *";
 
-/** Presets alignés sur https://wasenderapi.com/api-docs/rate-limits/understanding-rate-limits */
+/** Presets alignés sur les limites d'envoi WhatsApp Business (Meta) */
 export const WASENDER_RATE_PRESETS = {
   ACCOUNT_PROTECTION: {
     minIntervalMs: 5_000,

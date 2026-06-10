@@ -41,7 +41,7 @@ function extractMessageId(response: unknown): string {
   };
   const msgId = data.data?.msgId ?? data.data?.message_id;
   if (msgId == null) {
-    throw new Error("Réponse Wasender sans identifiant de message");
+    throw new Error("Réponse WhatsApp sans identifiant de message");
   }
   return String(msgId);
 }
@@ -213,7 +213,7 @@ export async function sendOutboundMessage(
     }
   } catch (err) {
     if (err instanceof WasenderAPIError) {
-      throw new Error(`Wasender: ${err.apiMessage}`);
+      throw new Error(`WhatsApp: ${err.apiMessage}`);
     }
     throw err;
   }

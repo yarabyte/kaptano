@@ -56,7 +56,7 @@ const comparisonRows = [
     scale: "3–8 s",
   },
   {
-    feature: "Protection Wasender (partagé)",
+    feature: "Protection Meta (partagé)",
     free: "1 / 5 s",
     starter: "1 / 5 s",
     growth: "—",
@@ -71,11 +71,11 @@ const faqs = [
   },
   {
     q: "Y a-t-il une limite d'envois par jour ?",
-    a: "Oui. Kaptano applique un plafond de 200 envois par exposant et par jour. Sur le numéro partagé (plans Gratuit et Starter), la protection compte Wasender impose environ 1 envoi toutes les 5 secondes et un maximum d'environ 12 envois par minute. Les envois manuels sont étalés de 3 à 8 secondes entre chaque message.",
+    a: "Oui. Kaptano applique un plafond de 200 envois par exposant et par jour. Sur le numéro partagé (plans Gratuit et Starter), la protection compte Meta impose environ 1 envoi toutes les 5 secondes et un maximum d'environ 12 envois par minute. Les envois manuels sont étalés de 3 à 8 secondes entre chaque message.",
   },
   {
     q: "Pourquoi mes envois sont-ils ralentis ?",
-    a: "Pour protéger votre numéro WhatsApp, Kaptano respecte les limites de l'API Wasender : intervalle minimum entre envois, plafond par minute, concurrence limitée (1 à 5 envois simultanés) et opt-in obligatoire. Un envoi massif peut être temporairement suspendu même si votre quota de leads n'est pas atteint.",
+    a: "Pour protéger votre numéro WhatsApp, Kaptano respecte les limites de la plateforme Meta : intervalle minimum entre envois, plafond par minute, concurrence limitée (1 à 5 envois simultanés) et opt-in obligatoire. Un envoi massif peut être temporairement suspendu même si votre quota de leads n'est pas atteint.",
   },
   {
     q: "Que se passe-t-il si je dépasse mon quota de leads ?",

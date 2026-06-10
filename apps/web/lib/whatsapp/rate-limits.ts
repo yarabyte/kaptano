@@ -172,7 +172,7 @@ export async function assertWhatsappSendAllowed(options: {
 
   if (lastMinuteSent >= limits.maxSendsPerMinute) {
     throw new WhatsappRateLimitError(
-      "Limite Wasender par minute atteinte",
+      "Limite Meta/WhatsApp par minute atteinte",
       60_000
     );
   }
@@ -185,7 +185,8 @@ export function isRateLimitErrorMessage(message: string | null | undefined): boo
     lower.includes("rate limit") ||
     lower.includes("rate-limit") ||
     lower.includes("plafond quotidien") ||
-    lower.includes("limite wasender") ||
+    lower.includes("limite meta") ||
+    lower.includes("limite whatsapp") ||
     lower.includes("limite de concurrence") ||
     lower.includes("retry_after") ||
     lower.includes("every 1 minute") ||

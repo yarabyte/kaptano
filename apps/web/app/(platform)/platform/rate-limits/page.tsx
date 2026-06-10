@@ -1,8 +1,10 @@
+import Link from "next/link";
+import { ExternalLink, Shield } from "lucide-react";
 import { loadPlatformRateLimitDashboard } from "@/lib/platform/rate-limit-data";
+import { META_WHATSAPP_RATE_LIMITS_URL } from "@/lib/legal/content";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DbAlert } from "@/components/platform/db-alert";
 import { RateLimitsManager } from "@/components/platform/rate-limits-manager";
-
 export default async function PlatformRateLimitsPage() {
   let data: Awaited<ReturnType<typeof loadPlatformRateLimitDashboard>> | null = null;
   let dbError: string | null = null;
@@ -14,11 +16,22 @@ export default async function PlatformRateLimitsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Rate limits WhatsApp"
-        description="Surveillez les envois et respectez les limites Wasender pour éviter les restrictions"
-      />
+        description="Pilotez le débit d'envoi, surveillez la consommation et protégez le numéro partagé contre les restrictions Meta."
+      >
+        <Link
+          href={META_WHATSAPP_RATE_LIMITS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          <Shield className="mr-2 h-4 w-4" />
+          Doc Meta
+          <ExternalLink className="ml-1.5 h-3.5 w-3.5 opacity-60" />
+        </Link>
+      </PageHeader>
 
       {dbError && <DbAlert />}
 

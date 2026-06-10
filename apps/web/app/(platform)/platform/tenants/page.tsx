@@ -22,7 +22,7 @@ export default async function PlatformTenantsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Espaces exposants"
-        description="Recherchez, filtrez et supervisez tous les comptes exposants"
+        description="Gérez les exposants : désactivation, promotion manuelle de plan et encaissement en espèces"
       />
 
       {dbError ? <DbAlert /> : <TenantsManager tenants={tenants} />}

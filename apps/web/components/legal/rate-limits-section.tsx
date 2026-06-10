@@ -1,4 +1,5 @@
-import { RATE_LIMIT_SECTION } from "@/lib/legal/content";
+import Link from "next/link";
+import { META_WHATSAPP_RATE_LIMITS_URL, RATE_LIMIT_SECTION } from "@/lib/legal/content";
 
 export function RateLimitsLegalSection() {
   return (
@@ -18,7 +19,15 @@ export function RateLimitsLegalSection() {
         ))}
       </ul>
       <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-        {RATE_LIMIT_SECTION.footer}
+        {RATE_LIMIT_SECTION.footer}{" "}
+        <Link
+          href={META_WHATSAPP_RATE_LIMITS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline"
+        >
+          Documentation Meta
+        </Link>
       </p>
     </section>
   );
