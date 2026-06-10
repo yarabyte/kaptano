@@ -31,6 +31,18 @@ export const createLeadSchema = z.object({
 
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 
+export const updateLeadSchema = z.object({
+  fullName: z.string().min(2).max(120).optional(),
+  whatsappNumber: z.string().min(8).optional(),
+  email: z.string().email().optional().or(z.literal("")).nullable(),
+  company: z.string().max(120).optional().nullable(),
+  interest: z.string().max(500).optional().nullable(),
+  standId: z.string().cuid().optional().nullable(),
+  optInConsent: z.boolean().optional(),
+});
+
+export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
+
 export const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -97,12 +109,27 @@ export function validateWhatsappMessageSettings(input: {
   }
 }
 
-export const inviteAgentSchema = z.object({
-  email: z.string().email(),
-  fullName: z.string().min(2).max(120),
-});
+export const inviteAgentChannelSchema = z.enum(["email", "whatsapp"]);
+
+export const inviteAgentSchema = z
+  .object({
+    email: z.string().email(),
+    fullName: z.string().min(2).max(120),
+    channel: inviteAgentChannelSchema.default("email"),
+    phone: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.channel === "whatsapp" && (!data.phone || data.phone.trim().length < 8)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Numéro WhatsApp requis pour une invitation par WhatsApp",
+        path: ["phone"],
+      });
+    }
+  });
 
 export type InviteAgentInput = z.infer<typeof inviteAgentSchema>;
+export type InviteAgentChannel = z.infer<typeof inviteAgentChannelSchema>;
 
 export const wasenderWebhookSchema = z.object({
   event: z.string(),

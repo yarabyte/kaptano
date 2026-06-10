@@ -26,3 +26,7 @@ export function createAccountWasenderClient(personalAccessToken: string): Wasend
     RETRY_CONFIG
   );
 }
+
+export function createSessionWasenderClient(sessionApiKey: string): Wasender {
+  return createWasender(sessionApiKey, undefined, BASE_URL, undefined, RETRY_CONFIG);
+}

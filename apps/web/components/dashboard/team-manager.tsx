@@ -28,10 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+type InviteChannel = "email" | "whatsapp";
+
 type TeamUser = {
   id: string;
   email: string;
   fullName: string | null;
+  phoneNumber: string | null;
   role: string;
   active: boolean;
   createdAt: string;
@@ -41,6 +44,8 @@ type TeamMeta = {
   tenantName: string;
   effectivePlanTier: string;
   usesSharedWhatsapp: boolean;
+  whatsappConnected: boolean;
+  smtpConfigured: boolean;
   agentCount: number;
   activeAgentCount: number;
 };
@@ -67,6 +72,8 @@ export function TeamManager() {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [channel, setChannel] = useState<InviteChannel>("email");
   const [inviting, setInviting] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<{ type: "ok" | "err"; text: string } | null>(
     null
@@ -91,6 +98,15 @@ export function TeamManager() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!meta) return;
+    if (meta.smtpConfigured) {
+      setChannel("email");
+    } else if (meta.whatsappConnected) {
+      setChannel("whatsapp");
+    }
+  }, [meta]);
+
   const admins = useMemo(
     () => users.filter((u) => u.role === "EXHIBITOR_ADMIN"),
     [users]
@@ -105,23 +121,48 @@ export function TeamManager() {
       const res = await fetch("/api/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), fullName: fullName.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          fullName: fullName.trim(),
+          channel,
+          phone: channel === "whatsapp" ? phone.trim() : undefined,
+        }),
       });
-      const data = (await res.json()) as { error?: string; emailSent?: boolean };
+      const data = (await res.json()) as {
+        error?: string;
+        inviteSent?: boolean;
+        channel?: InviteChannel;
+      };
 
       if (!res.ok) {
-        setInviteMessage({ type: "err", text: data.error ?? "Impossible d'inviter cet agent" });
+        if (res.status === 502) {
+          await load();
+        }
+        setInviteMessage({
+          type: "err",
+          text:
+            data.error ??
+            (res.status === 502
+              ? "Agent créé mais le message WhatsApp n'a pas pu être envoyé."
+              : "Impossible d'inviter cet agent"),
+        });
         return;
       }
 
+      const viaEmail = data.channel === "email";
       setInviteMessage({
         type: "ok",
-        text: data.emailSent
-          ? "Invitation envoyée par email avec les identifiants de connexion."
-          : "Agent créé. Configurez SMTP pour envoyer l'invitation par email.",
+        text: data.inviteSent
+          ? viaEmail
+            ? "Invitation envoyée par email avec les identifiants de connexion."
+            : "Invitation envoyée par WhatsApp avec les identifiants de connexion."
+          : viaEmail
+            ? "Agent créé mais l'email n'a pas pu être envoyé."
+            : "Agent créé mais le message WhatsApp n'a pas pu être envoyé.",
       });
       setEmail("");
       setFullName("");
+      setPhone("");
       await load();
     } catch {
       setInviteMessage({ type: "err", text: "Erreur réseau lors de l'invitation." });
@@ -129,6 +170,9 @@ export function TeamManager() {
       setInviting(false);
     }
   }
+
+  const canInviteByEmail = meta?.smtpConfigured ?? false;
+  const canInviteByWhatsapp = meta?.whatsappConnected ?? false;
 
   async function toggleActive(user: TeamUser) {
     setActionId(user.id);
@@ -225,10 +269,51 @@ export function TeamManager() {
             Inviter un agent
           </CardTitle>
           <CardDescription>
-            L&apos;agent recevra un email avec un mot de passe temporaire pour se connecter.
+            Choisissez comment envoyer les identifiants de connexion à l&apos;agent.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
+          <div className="mb-5 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant={channel === "email" ? "default" : "outline"}
+              size="sm"
+              className="h-9"
+              disabled={!canInviteByEmail || inviting}
+              onClick={() => setChannel("email")}
+            >
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Par email
+            </Button>
+            <Button
+              type="button"
+              variant={channel === "whatsapp" ? "default" : "outline"}
+              size="sm"
+              className="h-9"
+              disabled={!canInviteByWhatsapp || inviting}
+              onClick={() => setChannel("whatsapp")}
+            >
+              <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+              Par WhatsApp
+            </Button>
+          </div>
+
+          {!canInviteByEmail && !canInviteByWhatsapp && (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Aucun canal d&apos;invitation disponible. Configurez SMTP ou connectez WhatsApp.
+            </p>
+          )}
+          {channel === "email" && !canInviteByEmail && (
+            <p className="mb-4 text-sm text-amber-800">
+              SMTP non configuré — l&apos;invitation par email est indisponible.
+            </p>
+          )}
+          {channel === "whatsapp" && !canInviteByWhatsapp && (
+            <p className="mb-4 text-sm text-amber-800">
+              WhatsApp non connecté — l&apos;invitation par WhatsApp est indisponible.
+            </p>
+          )}
+
           {inviteMessage && (
             <div
               className={cn(
@@ -242,7 +327,10 @@ export function TeamManager() {
             </div>
           )}
 
-          <form onSubmit={invite} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
+          <form
+            onSubmit={invite}
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]"
+          >
             <div className="space-y-2">
               <Label htmlFor="agentName">Nom complet</Label>
               <Input
@@ -268,14 +356,39 @@ export function TeamManager() {
                 className="h-11"
               />
             </div>
-            <div className="flex items-end">
-              <Button type="submit" disabled={inviting} className="h-11 w-full sm:w-auto">
+            {channel === "whatsapp" && (
+              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                <Label htmlFor="agentPhone">WhatsApp de l&apos;agent</Label>
+                <Input
+                  id="agentPhone"
+                  type="tel"
+                  placeholder="+237 6 12 34 56 78"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  disabled={inviting}
+                  className="h-11"
+                />
+              </div>
+            )}
+            <div className="flex items-end sm:col-span-2 lg:col-span-1">
+              <Button
+                type="submit"
+                disabled={
+                  inviting ||
+                  (channel === "email" && !canInviteByEmail) ||
+                  (channel === "whatsapp" && !canInviteByWhatsapp)
+                }
+                className="h-11 w-full sm:w-auto"
+              >
                 {inviting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : channel === "whatsapp" ? (
+                  <MessageCircle className="mr-2 h-4 w-4" />
                 ) : (
-                  <UserPlus className="mr-2 h-4 w-4" />
+                  <Mail className="mr-2 h-4 w-4" />
                 )}
-                Envoyer l&apos;invitation
+                {channel === "whatsapp" ? "Envoyer par WhatsApp" : "Envoyer par email"}
               </Button>
             </div>
           </form>
@@ -437,6 +550,12 @@ function MemberCard({
               <Mail className="h-3.5 w-3.5 shrink-0" />
               {user.email}
             </p>
+            {user.phoneNumber && (
+              <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+                <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                {user.phoneNumber}
+              </p>
+            )}
           </div>
         </div>
 

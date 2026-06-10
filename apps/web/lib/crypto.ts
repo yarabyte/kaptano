@@ -21,3 +21,14 @@ export function encrypt(plaintext: string): string {
   const tag = cipher.getAuthTag();
   return `${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
 }
+
+export function decrypt(ciphertext: string): string {
+  const [ivB64, tagB64, dataB64] = ciphertext.split(":");
+  if (!ivB64 || !tagB64 || !dataB64) throw new Error("Ciphertext invalide");
+  const iv = Buffer.from(ivB64, "base64");
+  const tag = Buffer.from(tagB64, "base64");
+  const data = Buffer.from(dataB64, "base64");
+  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+}

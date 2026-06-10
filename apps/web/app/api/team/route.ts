@@ -7,18 +7,23 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { isSmtpConfigured } from "@/lib/mail/client";
 import { sendMail } from "@/lib/mail/send";
 import { teamInviteEmail } from "@/lib/mail/templates";
+import { normalizePhoneToE164 } from "@/lib/phone";
+import { resolveWhatsappCredentials } from "@/lib/whatsapp/resolve-session";
+import { sendWhatsappText } from "@/lib/whatsapp/send-text";
+import { teamInviteWhatsappMessage } from "@/lib/whatsapp/team-invite-message";
 
 export async function GET() {
   const ctx = await requireTenantContext();
   await requireRole(["EXHIBITOR_ADMIN"]);
 
-  const [users, tenant] = await Promise.all([
+  const [users, tenant, whatsappCreds] = await Promise.all([
     prisma.user.findMany({
       where: { tenantId: ctx.tenantId },
       select: {
         id: true,
         email: true,
         fullName: true,
+        phoneNumber: true,
         role: true,
         active: true,
         createdAt: true,
@@ -34,6 +39,7 @@ export async function GET() {
         subscriptionExpiresAt: true,
       },
     }),
+    resolveWhatsappCredentials(ctx.tenantId),
   ]);
 
   const effectiveTier = effectivePlanTier(
@@ -50,6 +56,9 @@ export async function GET() {
       tenantName: tenant.name,
       effectivePlanTier: effectiveTier,
       usesSharedWhatsapp: usesSharedWhatsapp(effectiveTier),
+      whatsappConnected:
+        Boolean(whatsappCreds.apiKeyEncrypted) && whatsappCreds.status === "CONNECTED",
+      smtpConfigured: isSmtpConfigured(),
       agentCount: agents.length,
       activeAgentCount: agents.filter((u) => u.active).length,
     },
@@ -66,7 +75,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Données invalides" }, { status: 400 });
   }
 
-  const { email, fullName } = parsed.data;
+  const { email, fullName, channel } = parsed.data;
+  let phoneE164: string | null = null;
+
+  if (channel === "email" && !isSmtpConfigured()) {
+    return NextResponse.json(
+      { error: "SMTP non configuré — impossible d'envoyer l'invitation par email" },
+      { status: 400 }
+    );
+  }
+
+  if (channel === "whatsapp") {
+    const credentials = await resolveWhatsappCredentials(ctx.tenantId);
+    if (!credentials.apiKeyEncrypted || credentials.status !== "CONNECTED") {
+      return NextResponse.json(
+        {
+          error: credentials.isShared
+            ? "Numéro WhatsApp partagé non disponible — contactez le support"
+            : "Session WhatsApp non connectée — connectez votre numéro avant d'inviter par WhatsApp",
+        },
+        { status: 400 }
+      );
+    }
+
+    phoneE164 = normalizePhoneToE164(parsed.data.phone ?? "");
+    if (!phoneE164) {
+      return NextResponse.json({ error: "Numéro WhatsApp invalide" }, { status: 400 });
+    }
+  }
+
   const tempPassword = crypto.randomUUID();
 
   const supabase = createSupabaseServiceClient();
@@ -87,6 +124,7 @@ export async function POST(request: Request) {
         supabaseUserId: authData.user.id,
         email,
         fullName,
+        phoneNumber: phoneE164,
         role: "AGENT",
         tenantId: ctx.tenantId,
       },
@@ -97,8 +135,9 @@ export async function POST(request: Request) {
     }),
   ]);
 
-  let emailSent = false;
-  if (isSmtpConfigured()) {
+  let inviteSent = false;
+
+  if (channel === "email") {
     try {
       const mail = teamInviteEmail({
         fullName,
@@ -107,11 +146,28 @@ export async function POST(request: Request) {
         tempPassword,
       });
       await sendMail({ to: email, ...mail });
-      emailSent = true;
+      inviteSent = true;
     } catch {
-      emailSent = false;
+      inviteSent = false;
+    }
+  } else if (channel === "whatsapp" && phoneE164) {
+    try {
+      const text = teamInviteWhatsappMessage({
+        fullName,
+        companyName: tenant.name,
+        email,
+        tempPassword,
+      });
+      await sendWhatsappText(ctx.tenantId, phoneE164, text);
+      inviteSent = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Échec envoi WhatsApp";
+      return NextResponse.json(
+        { user, channel, inviteSent: false, error: message },
+        { status: 502 }
+      );
     }
   }
 
-  return NextResponse.json({ user, emailSent });
+  return NextResponse.json({ user, channel, inviteSent });
 }

@@ -97,6 +97,7 @@ model User {
   supabaseUserId String   @unique
   email          String   @unique
   fullName       String?
+  phoneNumber    String?
   role           UserRole @default(AGENT)
   tenantId       String?
   tenant         Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
