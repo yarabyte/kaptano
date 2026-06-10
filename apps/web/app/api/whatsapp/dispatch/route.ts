@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+
+export const maxDuration = 60;
 import { manualDispatchFiltersSchema } from "@kaptano/shared";
 import { requireTenantContext, requireRole } from "@/lib/auth";
-
-const WORKER_URL = process.env.WORKER_URL ?? "http://localhost:8080";
+import { runManualDispatch } from "@/lib/whatsapp/run-manual-dispatch";
 
 export async function POST(request: Request) {
   const ctx = await requireTenantContext();
@@ -10,20 +11,11 @@ export async function POST(request: Request) {
 
   const body = manualDispatchFiltersSchema.parse(await request.json().catch(() => ({})));
 
-  const res = await fetch(`${WORKER_URL}/whatsapp/dispatch/${ctx.tenantId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const data: unknown = await res.json();
-
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: (data as { error?: string }).error ?? "Erreur d'envoi" },
-      { status: res.status }
-    );
+  try {
+    const result = await runManualDispatch(ctx.tenantId, body);
+    return NextResponse.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur d'envoi";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  return NextResponse.json(data);
 }

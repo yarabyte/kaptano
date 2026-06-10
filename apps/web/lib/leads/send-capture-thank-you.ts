@@ -1,18 +1,6 @@
-import {
-  DAILY_SEND_CAP,
-  LEAD_CAPTURE_THANK_YOU_TEMPLATE,
-  applyMessagePlaceholders,
-  getFirstName,
-  type WhatsappMessageType,
-} from "@kaptano/shared";
+import { DAILY_SEND_CAP } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
-import {
-  buildOutboundMessage,
-  sendOutboundMessage,
-  type WasenderOutboundMessage,
-} from "@/lib/whatsapp/outbound";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+import { processMessageJob } from "@/lib/whatsapp/process-message-job";
 
 export type CaptureThankYouResult = {
   sent: boolean;
@@ -46,23 +34,9 @@ export async function sendCaptureThankYou(
     return { sent: false, error: "Plafond quotidien d'envois WhatsApp atteint" };
   }
 
-  const [lead, tenant] = await Promise.all([
-    prisma.lead.findFirst({
-      where: { id: leadId, tenantId },
-      include: {
-        stand: { include: { catalog: true } },
-      },
-    }),
-    prisma.tenant.findUniqueOrThrow({
-      where: { id: tenantId },
-      select: {
-        name: true,
-        whatsappMessageType: true,
-        whatsappMessageConfig: true,
-        catalogs: { where: { isDefault: true }, take: 1 },
-      },
-    }),
-  ]);
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, tenantId },
+  });
 
   if (!lead?.optInConsent) {
     return { sent: false, skipped: true };
@@ -77,59 +51,11 @@ export async function sendCaptureThankYou(
     },
   });
 
-  const catalog =
-    lead.stand?.catalog ?? tenant.catalogs[0] ?? null;
-
-  const placeholders = {
-    prenom: getFirstName(lead.fullName),
-    entreprise: lead.company ?? tenant.name,
-    lien: `${APP_URL.replace(/\/$/, "")}/r/${messageJob.id}`,
-  };
-
   try {
-    const messageType = tenant.whatsappMessageType as WhatsappMessageType;
-    const catalogUrl = catalog?.publicUrl ?? null;
-    let outbound: WasenderOutboundMessage;
-
-    if (messageType === "DOCUMENT" && !catalogUrl) {
-      outbound = {
-        kind: "text",
-        to: lead.whatsappNumber,
-        text: applyMessagePlaceholders(LEAD_CAPTURE_THANK_YOU_TEMPLATE, placeholders),
-      };
-    } else {
-      outbound = buildOutboundMessage(
-        messageType,
-        tenant.whatsappMessageConfig,
-        lead.whatsappNumber,
-        placeholders,
-        catalogUrl,
-        catalog?.name ?? "catalogue.pdf"
-      );
-    }
-
-    const result = await sendOutboundMessage(tenantId, outbound);
-
-    await prisma.messageJob.update({
-      where: { id: messageJob.id },
-      data: {
-        status: "SENT",
-        wasenderMessageId: result.message_id,
-        sentAt: new Date(),
-        lastError: null,
-      },
-    });
-
+    await processMessageJob(messageJob.id);
     return { sent: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Échec envoi WhatsApp";
-    await prisma.messageJob.update({
-      where: { id: messageJob.id },
-      data: {
-        status: "FAILED",
-        lastError: message,
-      },
-    });
     return { sent: false, error: message };
   }
 }

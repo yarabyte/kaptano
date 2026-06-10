@@ -284,20 +284,35 @@ export default function WhatsappPage() {
     setError(null);
     setBatchProgress(null);
 
-    const res = await fetch("/api/whatsapp/dispatch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(standFilter ? { standId: standFilter } : {}),
-    });
-    const data = (await res.json()) as { batchId?: string; error?: string };
-    setDispatching(false);
+    try {
+      const res = await fetch("/api/whatsapp/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(standFilter ? { standId: standFilter } : {}),
+      });
+      const data = (await res.json()) as {
+        batchId?: string;
+        error?: string;
+        sent?: number;
+        failed?: number;
+      };
 
-    if (!res.ok || !data.batchId) {
-      setError(data.error ?? "Impossible de lancer l'envoi");
-      return;
+      if (!res.ok || !data.batchId) {
+        setError(data.error ?? "Impossible de lancer l'envoi");
+        return;
+      }
+
+      if (data.failed && data.failed > 0 && !data.sent) {
+        setError("L'envoi a échoué pour tous les leads. Vérifiez WhatsApp et le format du message.");
+      }
+
+      setActiveBatchId(data.batchId);
+      await Promise.all([loadStats(), loadPreview(standFilter || undefined)]);
+    } catch {
+      setError("Erreur réseau lors du lancement de l'envoi");
+    } finally {
+      setDispatching(false);
     }
-
-    setActiveBatchId(data.batchId);
   }
 
   const pollOptions =

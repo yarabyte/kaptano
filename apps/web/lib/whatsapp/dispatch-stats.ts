@@ -40,6 +40,94 @@ export async function countEligibleLeads(
   });
 }
 
+export async function getTodaySentCount(tenantId: string): Promise<number> {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  return prisma.messageJob.count({
+    where: {
+      tenantId,
+      status: { in: ["SENT", "DELIVERED", "READ"] },
+      sentAt: { gte: startOfDay },
+    },
+  });
+}
+
+export type BatchProgress = {
+  batchId: string;
+  status: "RUNNING" | "COMPLETED" | "FAILED";
+  total: number;
+  queued: number;
+  sending: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  failed: number;
+  progress: number;
+};
+
+export async function getBatchProgress(
+  tenantId: string,
+  batchId: string
+): Promise<BatchProgress | null> {
+  const batch = await prisma.dispatchBatch.findFirst({
+    where: { id: batchId, tenantId },
+  });
+
+  if (!batch) return null;
+
+  const groups = await prisma.messageJob.groupBy({
+    by: ["status"],
+    where: { dispatchBatchId: batchId, tenantId },
+    _count: { _all: true },
+  });
+
+  const counts = {
+    queued: 0,
+    sending: 0,
+    sent: 0,
+    delivered: 0,
+    read: 0,
+    failed: 0,
+  };
+
+  for (const g of groups) {
+    const n = g._count._all;
+    switch (g.status) {
+      case "QUEUED":
+        counts.queued = n;
+        break;
+      case "SENDING":
+        counts.sending = n;
+        break;
+      case "SENT":
+        counts.sent = n;
+        break;
+      case "DELIVERED":
+        counts.delivered = n;
+        break;
+      case "READ":
+        counts.read = n;
+        break;
+      case "FAILED":
+        counts.failed = n;
+        break;
+    }
+  }
+
+  const terminal = counts.sent + counts.delivered + counts.read + counts.failed;
+  const progress =
+    batch.totalCount > 0 ? Math.round((terminal / batch.totalCount) * 100) : 0;
+
+  return {
+    batchId: batch.id,
+    status: batch.status,
+    total: batch.totalCount,
+    ...counts,
+    progress: batch.status !== "RUNNING" ? 100 : progress,
+  };
+}
+
 export async function getLeadWhatsAppSummary(
   tenantId: string,
   filters?: ManualDispatchFilters
