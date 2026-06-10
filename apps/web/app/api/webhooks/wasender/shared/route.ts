@@ -9,6 +9,7 @@ import {
 } from "wasenderapi";
 import { prisma } from "@/lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
+import { handlePollResultsWebhook } from "@/lib/whatsapp/poll-results";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
+  const rawBody = (await request.json()) as {
+    event?: string;
+    data?: {
+      key?: { id?: string };
+      pollResult?: Array<{ name: string; voters: string[] }>;
+      status?: string;
+    };
+    timestamp?: number;
+  };
+
+  if (rawBody.event === "poll.results" && rawBody.data) {
+    await handlePollResultsWebhook(rawBody.data, rawBody.timestamp);
+    return NextResponse.json({ ok: true });
+  }
+
   let event;
   try {
-    event = dispatchWebhookEvent(await request.json());
+    event = dispatchWebhookEvent(rawBody);
   } catch (err) {
     const message =
       err instanceof WasenderAPIError ? err.apiMessage : "Invalid payload";

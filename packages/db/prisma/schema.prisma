@@ -242,6 +242,10 @@ model MessageJob {
   deliveredAt       DateTime?
   readAt            DateTime?
   catalogClickedAt  DateTime?
+  isPoll            Boolean        @default(false)
+  pollSnapshot      Json?
+  pollResults       Json?
+  pollResultsAt     DateTime?
   createdAt         DateTime       @default(now())
 
   @@unique([leadId])

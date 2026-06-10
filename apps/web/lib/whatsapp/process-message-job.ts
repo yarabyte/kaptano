@@ -3,6 +3,7 @@ import {
   LEAD_CAPTURE_THANK_YOU_TEMPLATE,
   applyMessagePlaceholders,
   getFirstName,
+  parseWhatsappMessageConfig,
   type WhatsappMessageType,
 } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ import {
   sendOutboundMessage,
   type WasenderOutboundMessage,
 } from "@/lib/whatsapp/outbound";
+import type { PollSnapshot } from "@/lib/whatsapp/poll-results";
 import { resolveWhatsappCredentials } from "@/lib/whatsapp/resolve-session";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -78,11 +80,6 @@ export async function processMessageJob(messageJobId: string): Promise<void> {
     throw new Error("Plafond quotidien atteint");
   }
 
-  await prisma.messageJob.update({
-    where: { id: job.id },
-    data: { status: "SENDING", attempts: { increment: 1 } },
-  });
-
   const tenant = job.tenant;
   const catalog = job.lead.stand?.catalog ?? tenant?.catalogs[0] ?? null;
 
@@ -106,6 +103,29 @@ export async function processMessageJob(messageJobId: string): Promise<void> {
 
   const catalogUrl = catalog?.publicUrl ?? null;
   let outbound: WasenderOutboundMessage;
+  let pollSnapshot: PollSnapshot | null = null;
+
+  if (messageType === "POLL") {
+    const pollConfig = parseWhatsappMessageConfig(
+      "POLL",
+      tenant?.whatsappMessageConfig ?? {}
+    ) as { question: string; options: string[]; multiSelect?: boolean };
+    pollSnapshot = {
+      question: pollConfig.question,
+      options: pollConfig.options,
+      multiSelect: pollConfig.multiSelect,
+    };
+  }
+
+  await prisma.messageJob.update({
+    where: { id: job.id },
+    data: {
+      status: "SENDING",
+      attempts: { increment: 1 },
+      isPoll: messageType === "POLL",
+      pollSnapshot: pollSnapshot ?? undefined,
+    },
+  });
 
   try {
     if (messageType === "DOCUMENT" && !catalogUrl) {

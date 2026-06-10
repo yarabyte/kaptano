@@ -9,6 +9,7 @@ const WEBHOOK_EVENTS = [
   "message.sent",
   "messages.update",
   "qrcode.updated",
+  "poll.results",
 ];
 
 export type SessionCreateResult = {
