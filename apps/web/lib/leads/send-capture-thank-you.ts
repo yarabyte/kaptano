@@ -1,5 +1,5 @@
-import { DAILY_SEND_CAP } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
+import { getTenantDailySendCap } from "@/lib/whatsapp/rate-limits";
 import { processMessageJob } from "@/lib/whatsapp/process-message-job";
 
 export type CaptureThankYouResult = {
@@ -30,7 +30,8 @@ export async function sendCaptureThankYou(
     },
   });
 
-  if (todaySent >= DAILY_SEND_CAP) {
+  const tenantDailyCap = await getTenantDailySendCap();
+  if (todaySent >= tenantDailyCap) {
     return { sent: false, error: "Plafond quotidien d'envois WhatsApp atteint" };
   }
 

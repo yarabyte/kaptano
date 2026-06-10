@@ -11,6 +11,7 @@ import {
   MessageCircle,
   CreditCard,
   AlertTriangle,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ const iconMap: Record<PlatformNavIcon, LucideIcon> = {
   "message-circle": MessageCircle,
   "credit-card": CreditCard,
   "alert-triangle": AlertTriangle,
+  gauge: Gauge,
 };
 
 export function PlatformNavLinks({
@@ -67,7 +69,7 @@ export function PlatformMobileNav({ items }: { items: PlatformNavItem[] }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="border-b border-border/60 bg-white/95 backdrop-blur-sm lg:hidden">
+    <div className="border-b border-border/60 bg-white/95 backdrop-blur-sm md:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <span className="font-heading text-sm font-semibold text-foreground">Admin plateforme</span>
         <button

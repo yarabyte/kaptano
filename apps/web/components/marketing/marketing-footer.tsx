@@ -7,14 +7,18 @@ const links = {
     { href: "/signup", label: "Inscription" },
     { href: "/login", label: "Connexion" },
   ],
+  legal: [
+    { href: "/cgu", label: "Conditions d'utilisation" },
+    { href: "/cgv", label: "Conditions de vente" },
+  ],
 };
 
 export function MarketingFooter() {
   return (
     <footer className="border-t bg-accent/20">
       <div className="container mx-auto px-4 py-14">
-        <div className="grid gap-10 md:grid-cols-[1.5fr_1fr] lg:grid-cols-[2fr_1fr_1fr]">
-          <div className="max-w-sm">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="max-w-sm sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2.5">
               <Image src="/logo.png" alt="Kaptano" width={36} height={36} />
               <span className="font-heading text-lg font-bold">Kaptano</span>
@@ -43,6 +47,22 @@ export function MarketingFooter() {
           </div>
 
           <div>
+            <p className="text-sm font-semibold text-foreground">Légal</p>
+            <ul className="mt-4 space-y-3">
+              {links.legal.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
             <p className="text-sm font-semibold text-foreground">Contact</p>
             <p className="mt-4 text-sm text-muted-foreground">
               Support exposants et intégrateurs WhatsApp.
@@ -55,9 +75,18 @@ export function MarketingFooter() {
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} Kaptano. Tous droits réservés.
           </p>
-          <p className="text-xs text-muted-foreground">
-            Conçu pour les salons professionnels, foires et expositions en Afrique et en Europe
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <Link href="/cgu" className="hover:text-primary">
+              CGU
+            </Link>
+            <Link href="/cgv" className="hover:text-primary">
+              CGV
+            </Link>
+            <span className="hidden sm:inline" aria-hidden>
+              ·
+            </span>
+            <span>Salons professionnels, foires et expositions</span>
+          </div>
         </div>
       </div>
     </footer>

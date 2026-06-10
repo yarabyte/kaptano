@@ -53,6 +53,11 @@ export const signupSchema = z.object({
     .min(2)
     .max(60)
     .regex(/^[a-z0-9-]+$/, "Slug invalide (a-z, 0-9, tirets)"),
+  acceptedCgv: z.literal(true, {
+    errorMap: () => ({
+      message: "Vous devez accepter les conditions générales de vente",
+    }),
+  }),
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;

@@ -1,33 +1,10 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { getTenantUsageSummary } from "@/lib/leads/check-quota";
 import { Button } from "@/components/ui/button";
 
-type UsageSummary = {
-  used: number;
-  quota: number;
-  remaining: number;
-  isAtLimit: boolean;
-  subscriptionStatus: string;
-  effectiveTier: string;
-  planTier: string;
-};
-
-export function QuotaBanner() {
-  const [usage, setUsage] = useState<UsageSummary | null>(null);
-
-  useEffect(() => {
-    fetch("/api/billing/usage")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { usage?: UsageSummary } | null) => {
-        if (data?.usage) setUsage(data.usage);
-      })
-      .catch(() => {});
-  }, []);
-
-  if (!usage) return null;
+export async function QuotaBanner({ tenantId }: { tenantId: string }) {
+  const usage = await getTenantUsageSummary(tenantId);
 
   const showLimit = usage.isAtLimit;
   const showPastDue =

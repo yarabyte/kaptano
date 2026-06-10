@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { UserRole } from "@kaptano/db";
 import type { TenantContext } from "@kaptano/shared";
@@ -21,7 +22,7 @@ export class DatabaseUnavailableError extends Error {
   }
 }
 
-export async function getSessionUser() {
+export const getSessionUser = cache(async () => {
   const supabase = createSupabaseServerClient();
   const {
     data: { user },
@@ -32,7 +33,18 @@ export async function getSessionUser() {
   try {
     const dbUser = await prisma.user.findUnique({
       where: { supabaseUserId: user.id },
-      include: { tenant: true },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            planTier: true,
+            subscriptionStatus: true,
+            subscriptionExpiresAt: true,
+          },
+        },
+      },
     });
 
     if (!dbUser || !dbUser.active) return null;
@@ -42,7 +54,7 @@ export async function getSessionUser() {
     console.error("[auth] Échec lecture utilisateur:", error);
     throw new DatabaseUnavailableError();
   }
-}
+});
 
 export async function requireAuth(): Promise<TenantContext> {
   const user = await getSessionUser();

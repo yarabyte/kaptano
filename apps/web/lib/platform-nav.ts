@@ -3,7 +3,8 @@ export type PlatformNavIcon =
   | "building"
   | "message-circle"
   | "credit-card"
-  | "alert-triangle";
+  | "alert-triangle"
+  | "gauge";
 
 export type PlatformNavItem = {
   href: string;
@@ -30,6 +31,12 @@ export const platformNav: PlatformNavItem[] = [
     label: "WhatsApp partagé",
     icon: "message-circle",
     description: "Numéro Gratuit & Starter",
+  },
+  {
+    href: "/platform/rate-limits",
+    label: "Rate limits",
+    icon: "gauge",
+    description: "Limites Wasender et monitoring des envois",
   },
   {
     href: "/platform/payments",

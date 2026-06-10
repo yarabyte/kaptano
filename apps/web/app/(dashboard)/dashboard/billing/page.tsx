@@ -33,7 +33,7 @@ export default async function BillingPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Facturation</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Facturation</h1>
         <p className="text-muted-foreground">Abonnement mensuel via Orange Money ou MTN Money</p>
       </div>
 
@@ -88,8 +88,23 @@ export default async function BillingPage({
             <CardTitle className="text-lg">Historique des paiements</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-hidden rounded-lg border">
-              <table className="w-full text-sm">
+            <div className="space-y-3 md:hidden">
+              {recentPayments.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-lg border border-border/60 p-4 text-sm"
+                >
+                  <p className="font-medium">{formatDate(p.createdAt)}</p>
+                  <p className="mt-1 text-muted-foreground">Plan {p.planTier}</p>
+                  <p className="mt-2 font-semibold">
+                    {p.amount.toLocaleString("fr-FR")} {p.currency}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{p.status}</p>
+                </div>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto rounded-lg border md:block">
+              <table className="w-full min-w-[480px] text-sm">
                 <thead className="border-b bg-accent/30">
                   <tr>
                     <th className="px-4 py-2 text-left">Date</th>

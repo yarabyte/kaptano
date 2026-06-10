@@ -39,6 +39,7 @@ export default function SignupPage() {
   const [step, setStep] = useState(1);
   const [slugTouched, setSlugTouched] = useState(false);
   const [slugStatus, setSlugStatus] = useState<SlugStatus>({ state: "idle" });
+  const [acceptedCgv, setAcceptedCgv] = useState(false);
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -171,7 +172,7 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const parsed = signupSchema.safeParse(form);
+    const parsed = signupSchema.safeParse({ ...form, acceptedCgv });
     if (!parsed.success) {
       setError(parsed.error.errors[0]?.message ?? "Données invalides");
       setLoading(false);
@@ -410,6 +411,35 @@ export default function SignupPage() {
                   </div>
                 </div>
 
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-accent/20 px-3 py-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={acceptedCgv}
+                    onChange={(e) => setAcceptedCgv(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
+                    required
+                  />
+                  <span className="leading-relaxed text-muted-foreground">
+                    J&apos;accepte les{" "}
+                    <Link
+                      href="/cgv"
+                      target="_blank"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      conditions générales de vente
+                    </Link>{" "}
+                    et les{" "}
+                    <Link
+                      href="/cgu"
+                      target="_blank"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      conditions générales d&apos;utilisation
+                    </Link>
+                    , notamment les limites d&apos;envoi WhatsApp et les règles anti-ban.
+                  </span>
+                </label>
+
                 {error && (
                   <p className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                     {error}
@@ -429,7 +459,7 @@ export default function SignupPage() {
                   <Button
                     type="submit"
                     className="h-11 flex-1 shadow-md shadow-primary/25"
-                    disabled={loading}
+                    disabled={loading || !acceptedCgv}
                   >
                     {loading ? "Création..." : "Créer mon compte"}
                   </Button>

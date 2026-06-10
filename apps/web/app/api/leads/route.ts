@@ -43,26 +43,36 @@ export async function GET(request: Request) {
     }
   }
 
-  const leads = await prisma.lead.findMany({
-    where,
-    include: {
-      stand: { select: { id: true, name: true } },
-      messageJobs: {
-        select: {
-          id: true,
-          status: true,
-          sentAt: true,
-          deliveredAt: true,
-          readAt: true,
-          catalogClickedAt: true,
+  const limit = Math.min(
+    200,
+    Math.max(1, Number.parseInt(searchParams.get("limit") ?? "100", 10) || 100)
+  );
+  const offset = Math.max(0, Number.parseInt(searchParams.get("offset") ?? "0", 10) || 0);
+
+  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
+      where,
+      include: {
+        stand: { select: { id: true, name: true } },
+        messageJobs: {
+          select: {
+            id: true,
+            status: true,
+            sentAt: true,
+            deliveredAt: true,
+            readAt: true,
+            catalogClickedAt: true,
+          },
         },
       },
-    },
-    orderBy: { capturedAt: "desc" },
-    take: 500,
-  });
+      orderBy: { capturedAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.lead.count({ where }),
+  ]);
 
-  return NextResponse.json({ leads });
+  return NextResponse.json({ leads, total, limit, offset });
 }
 
 export async function POST(request: Request) {

@@ -16,6 +16,7 @@ import {
   Users,
   Shield,
 } from "lucide-react";
+import { PricingRateLimits } from "@/components/marketing/pricing-rate-limits";
 
 const plans = [
   { tier: "FREE", label: "Gratuit", priceXaf: 0, highlight: false, tagline: "Tester sur un événement" },
@@ -46,6 +47,21 @@ const comparisonRows = [
   { feature: "Envoi manuel", free: "Oui", starter: "Oui", growth: "Oui", scale: "Oui" },
   { feature: "Suivi livraison & lectures", free: "Oui", starter: "Oui", growth: "Oui", scale: "Oui" },
   { feature: "Paiement Mobile Money", free: "—", starter: "Oui", growth: "Oui", scale: "Oui" },
+  { feature: "Plafond envois / jour", free: "200", starter: "200", growth: "200", scale: "200" },
+  {
+    feature: "Intervalle anti-ban (manuel)",
+    free: "3–8 s",
+    starter: "3–8 s",
+    growth: "3–8 s",
+    scale: "3–8 s",
+  },
+  {
+    feature: "Protection Wasender (partagé)",
+    free: "1 / 5 s",
+    starter: "1 / 5 s",
+    growth: "—",
+    scale: "—",
+  },
 ];
 
 const faqs = [
@@ -55,7 +71,11 @@ const faqs = [
   },
   {
     q: "Y a-t-il une limite d'envois par jour ?",
-    a: "Oui, un plafond de 200 envois par jour protège votre numéro WhatsApp contre les blocages. Les envois sont étalés automatiquement pour respecter les bonnes pratiques anti-spam.",
+    a: "Oui. Kaptano applique un plafond de 200 envois par exposant et par jour. Sur le numéro partagé (plans Gratuit et Starter), la protection compte Wasender impose environ 1 envoi toutes les 5 secondes et un maximum d'environ 12 envois par minute. Les envois manuels sont étalés de 3 à 8 secondes entre chaque message.",
+  },
+  {
+    q: "Pourquoi mes envois sont-ils ralentis ?",
+    a: "Pour protéger votre numéro WhatsApp, Kaptano respecte les limites de l'API Wasender : intervalle minimum entre envois, plafond par minute, concurrence limitée (1 à 5 envois simultanés) et opt-in obligatoire. Un envoi massif peut être temporairement suspendu même si votre quota de leads n'est pas atteint.",
   },
   {
     q: "Que se passe-t-il si je dépasse mon quota de leads ?",
@@ -204,6 +224,8 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
+
+      <PricingRateLimits />
 
       {/* Comparaison */}
       <section className="py-16 lg:py-20">

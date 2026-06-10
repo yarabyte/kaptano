@@ -1,5 +1,4 @@
 import {
-  DAILY_SEND_CAP,
   LEAD_CAPTURE_THANK_YOU_TEMPLATE,
   applyMessagePlaceholders,
   getFirstName,
@@ -13,15 +12,14 @@ import {
   type WasenderOutboundMessage,
 } from "@/lib/whatsapp/outbound";
 import type { PollSnapshot } from "@/lib/whatsapp/poll-results";
+import {
+  assertWhatsappSendAllowed,
+  recordWhatsappSend,
+  waitForWhatsappSendSlot,
+} from "@/lib/whatsapp/rate-limits";
 import { resolveWhatsappCredentials } from "@/lib/whatsapp/resolve-session";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
-function startOfDay(d: Date): Date {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
 
 export async function processMessageJob(messageJobId: string): Promise<void> {
   const job = await prisma.messageJob.findUnique({
@@ -64,20 +62,18 @@ export async function processMessageJob(messageJobId: string): Promise<void> {
     throw new Error(lastError);
   }
 
-  const todayCount = await prisma.messageJob.count({
-    where: {
+  try {
+    await assertWhatsappSendAllowed({
       tenantId: job.tenantId,
-      status: { in: ["SENT", "DELIVERED", "READ"] },
-      sentAt: { gte: startOfDay(new Date()) },
-    },
-  });
-
-  if (todayCount >= DAILY_SEND_CAP) {
+      isShared: credentials.isShared,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Limite d'envoi atteinte";
     await prisma.messageJob.update({
       where: { id: job.id },
-      data: { status: "FAILED", lastError: "Plafond quotidien atteint" },
+      data: { status: "FAILED", lastError: message },
     });
-    throw new Error("Plafond quotidien atteint");
+    throw err;
   }
 
   const tenant = job.tenant;
@@ -154,7 +150,9 @@ export async function processMessageJob(messageJobId: string): Promise<void> {
   }
 
   try {
+    await waitForWhatsappSendSlot(credentials.isShared);
     const result = await sendOutboundMessage(job.tenantId, outbound);
+    await recordWhatsappSend(credentials.isShared);
     await prisma.messageJob.update({
       where: { id: job.id },
       data: {

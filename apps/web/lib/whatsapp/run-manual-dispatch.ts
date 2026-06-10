@@ -1,6 +1,6 @@
 import type { ManualDispatchFilters } from "@kaptano/shared";
-import { DAILY_SEND_CAP } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
+import { getTenantDailySendCap } from "@/lib/whatsapp/rate-limits";
 import {
   buildEligibleLeadsWhere,
   getTodaySentCount,
@@ -21,11 +21,12 @@ export async function runManualDispatch(
     );
   }
 
+  const tenantDailyCap = await getTenantDailySendCap();
   const todaySent = await getTodaySentCount(tenantId);
-  const remaining = DAILY_SEND_CAP - todaySent;
+  const remaining = tenantDailyCap - todaySent;
 
   if (remaining <= 0) {
-    throw new Error("Plafond quotidien d'envois atteint (200)");
+    throw new Error(`Plafond quotidien d'envois atteint (${tenantDailyCap})`);
   }
 
   const leads = await prisma.lead.findMany({

@@ -6,7 +6,7 @@ import {
   TrendingUp,
   CalendarDays,
 } from "lucide-react";
-import { requireTenantContext } from "@/lib/auth";
+import { getSessionUser, requireTenantContext } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCurrentPeriod } from "@/lib/utils";
 import { getTenantUsageSummary } from "@/lib/leads/check-quota";
@@ -28,7 +28,10 @@ export default async function DashboardPage() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const [leadCount, standCount, todayLeadCount, recentLeads, usage, whatsapp, tenant] =
+  const sessionUser = await getSessionUser();
+  const tenantFromSession = sessionUser?.tenant;
+
+  const [leadCount, standCount, todayLeadCount, recentLeads, usage, whatsapp] =
     await Promise.all([
       prisma.lead.count({ where: { tenantId: ctx.tenantId } }),
       prisma.stand.count({ where: { tenantId: ctx.tenantId, active: true } }),
@@ -51,11 +54,11 @@ export default async function DashboardPage() {
       }),
       getTenantUsageSummary(ctx.tenantId),
       getResolvedWhatsappSession(ctx.tenantId),
-      prisma.tenant.findUnique({
-        where: { id: ctx.tenantId },
-        select: { name: true, planTier: true },
-      }),
     ]);
+
+  const tenant = tenantFromSession
+    ? { name: tenantFromSession.name, planTier: tenantFromSession.planTier }
+    : null;
 
   const sessionDisconnected =
     whatsapp.whatsappMode === "own" &&

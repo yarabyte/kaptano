@@ -25,7 +25,7 @@ export function PlatformSidebar({
     .join("");
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-border/60 bg-white lg:flex lg:w-72">
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-border/60 bg-white md:flex md:w-72">
       <div className="flex h-16 items-center gap-2.5 border-b border-border/60 px-5">
         <Link href="/platform" className="flex items-center gap-2.5">
           <Image src="/logo.png" alt="Kaptano" width={32} height={32} />

@@ -1,7 +1,7 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { DatabaseUnavailableError, requireAuth } from "@/lib/auth";
+import { DatabaseUnavailableError, getSessionUser } from "@/lib/auth";
 import { DatabaseUnavailable } from "@/components/dashboard/database-unavailable";
-import { prisma } from "@/lib/prisma";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { filterNavForRole } from "@/lib/dashboard-nav";
 import { QuotaBanner } from "@/components/dashboard/quota-banner";
@@ -14,9 +14,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  let ctx;
+  let user;
   try {
-    ctx = await requireAuth();
+    user = await getSessionUser();
   } catch (error) {
     if (error instanceof DatabaseUnavailableError) {
       return <DatabaseUnavailable />;
@@ -24,22 +24,25 @@ export default async function DashboardLayout({
     throw error;
   }
 
-  if (ctx.role === "PLATFORM_ADMIN") {
+  if (!user) {
+    redirect("/login");
+  }
+
+  if (user.role === "PLATFORM_ADMIN") {
     redirect("/platform");
   }
 
-  let tenant: { name: string } | null = null;
-  if (ctx.tenantId) {
-    try {
-      tenant = await prisma.tenant.findUnique({
-        where: { id: ctx.tenantId },
-        select: { name: true },
-      });
-    } catch (error) {
-      console.error("[dashboard] Échec lecture tenant:", error);
-      return <DatabaseUnavailable />;
-    }
+  if (!user.tenantId) {
+    redirect("/login?error=no_tenant");
   }
+
+  const ctx = {
+    tenantId: user.tenantId,
+    userId: user.id,
+    role: user.role,
+    email: user.email,
+    fullName: user.fullName,
+  };
 
   const visibleNav = filterNavForRole(ctx.role as UserRole);
 
@@ -57,14 +60,16 @@ export default async function DashboardLayout({
         userName={ctx.fullName ?? ctx.email}
         userEmail={ctx.email}
         role={ctx.role}
-        tenantName={tenant?.name}
+        tenantName={user.tenant?.name}
         signOut={signOut}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardMobileNav items={visibleNav} />
         <main className="flex-1 overflow-auto">
           <div className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
-            <QuotaBanner />
+            <Suspense fallback={null}>
+              <QuotaBanner tenantId={ctx.tenantId} />
+            </Suspense>
             {children}
           </div>
         </main>

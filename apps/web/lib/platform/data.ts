@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 
-export async function loadPlatformTenants() {
+const tenantListSelect = {
+  whatsappSession: { select: { status: true, phoneNumber: true } },
+  _count: { select: { leads: true, users: true, stands: true } },
+} as const;
+
+export async function loadPlatformTenants(limit = 200) {
   return prisma.tenant.findMany({
-    include: {
-      whatsappSession: { select: { status: true, phoneNumber: true } },
-      _count: { select: { leads: true, users: true, stands: true } },
-    },
+    include: tenantListSelect,
     orderBy: { createdAt: "desc" },
+    take: limit,
   });
 }
 
@@ -31,21 +34,31 @@ export async function loadPlatformPayments(limit = 50) {
 }
 
 export async function loadPlatformOverview() {
-  const tenants = await loadPlatformTenants();
+  const [tenants, failedJobs, totalLeads, recentPayments, planGroups] =
+    await Promise.all([
+      prisma.tenant.findMany({
+        include: tenantListSelect,
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      loadPlatformFailedJobs(8),
+      prisma.lead.count(),
+      loadPlatformPayments(5),
+      prisma.tenant.groupBy({
+        by: ["planTier"],
+        _count: { _all: true },
+      }),
+    ]);
 
-  const [failedJobs, totalLeads, recentPayments] = await Promise.all([
-    loadPlatformFailedJobs(8),
-    prisma.lead.count(),
-    loadPlatformPayments(5),
-  ]);
-
-  const planCounts = tenants.reduce(
-    (acc, t) => {
-      acc[t.planTier] = (acc[t.planTier] ?? 0) + 1;
+  const planCounts = planGroups.reduce(
+    (acc, g) => {
+      acc[g.planTier] = g._count._all;
       return acc;
     },
     {} as Record<string, number>
   );
+
+  const tenantCount = Object.values(planCounts).reduce((a, b) => a + b, 0);
 
   return {
     tenants,
@@ -54,7 +67,7 @@ export async function loadPlatformOverview() {
     recentPayments,
     planCounts,
     stats: {
-      tenants: tenants.length,
+      tenants: tenantCount,
       totalLeads,
       failedJobs: failedJobs.length,
       payments: recentPayments.length,

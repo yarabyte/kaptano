@@ -6,6 +6,31 @@ export const MAX_SEND_ATTEMPTS = 3;
 export const DAILY_SEND_CAP = 200;
 export const DISPATCH_CRON = "*/15 * * * *";
 
+/** Presets alignés sur https://wasenderapi.com/api-docs/rate-limits/understanding-rate-limits */
+export const WASENDER_RATE_PRESETS = {
+  ACCOUNT_PROTECTION: {
+    minIntervalMs: 5_000,
+    maxSendsPerMinute: 12,
+    globalDailySendCap: 500,
+    tenantDailySendCap: 200,
+    label: "Protection compte (1 req / 5 s)",
+  },
+  PAID: {
+    minIntervalMs: 250,
+    maxSendsPerMinute: 256,
+    globalDailySendCap: 5_000,
+    tenantDailySendCap: 200,
+    label: "Plan payant (256 req / min)",
+  },
+  TRIAL: {
+    minIntervalMs: 60_000,
+    maxSendsPerMinute: 1,
+    globalDailySendCap: 50,
+    tenantDailySendCap: 50,
+    label: "Essai (1 req / min, 50 / jour)",
+  },
+} as const;
+
 export const DEFAULT_TIMEZONE = "Africa/Douala";
 export const DEFAULT_DAILY_SEND_TIME = "18:00";
 

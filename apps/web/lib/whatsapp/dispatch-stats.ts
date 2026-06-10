@@ -1,6 +1,6 @@
 import type { Prisma } from "@kaptano/db";
-import { DAILY_SEND_CAP } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
+import { getTenantDailySendCap } from "@/lib/whatsapp/rate-limits";
 
 export type ManualDispatchFilters = {
   standId?: string;
@@ -169,7 +169,8 @@ export async function getTenantSendStats(tenantId: string) {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const [allTime, today, catalogClicks, lastBatch] = await Promise.all([
+  const [tenantDailyCap, allTime, today, catalogClicks, lastBatch] = await Promise.all([
+    getTenantDailySendCap(),
     prisma.messageJob.groupBy({
       by: ["status"],
       where: { tenantId },
@@ -225,7 +226,7 @@ export async function getTenantSendStats(tenantId: string) {
     },
     remainingToday: Math.max(
       0,
-      DAILY_SEND_CAP -
+      tenantDailyCap -
         ((todayMap.SENT ?? 0) + (todayMap.DELIVERED ?? 0) + (todayMap.READ ?? 0))
     ),
     lastBatch,

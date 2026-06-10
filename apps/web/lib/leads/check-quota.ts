@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { PLAN_QUOTAS, effectivePlanTier, getStandLimit } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
 import { getCurrentPeriod } from "@/lib/utils";
@@ -28,9 +29,10 @@ export class StandQuotaExceededError extends Error {
 }
 
 export async function getStandQuotaSummary(tenantId: string) {
-  const tenant = await prisma.tenant.findUniqueOrThrow({
-    where: { id: tenantId },
-  });
+  const [tenant, used] = await Promise.all([
+    prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+    prisma.stand.count({ where: { tenantId } }),
+  ]);
 
   const tier = effectivePlanTier(
     tenant.planTier,
@@ -38,7 +40,6 @@ export async function getStandQuotaSummary(tenantId: string) {
     tenant.subscriptionExpiresAt
   );
   const limit = getStandLimit(tier);
-  const used = await prisma.stand.count({ where: { tenantId } });
 
   return {
     effectiveTier: tier,
@@ -88,14 +89,14 @@ export async function assertLeadQuota(tenantId: string): Promise<void> {
   }
 }
 
-export async function getTenantUsageSummary(tenantId: string) {
+export const getTenantUsageSummary = cache(async (tenantId: string) => {
   const period = getCurrentPeriod();
-  const tenant = await prisma.tenant.findUniqueOrThrow({
-    where: { id: tenantId },
-  });
-  const usage = await prisma.usageRecord.findUnique({
-    where: { tenantId_period: { tenantId, period } },
-  });
+  const [tenant, usage] = await Promise.all([
+    prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+    prisma.usageRecord.findUnique({
+      where: { tenantId_period: { tenantId, period } },
+    }),
+  ]);
 
   const tier = effectivePlanTier(
     tenant.planTier,
@@ -116,4 +117,4 @@ export async function getTenantUsageSummary(tenantId: string) {
     isAtLimit: used >= quota,
     period,
   };
-}
+});

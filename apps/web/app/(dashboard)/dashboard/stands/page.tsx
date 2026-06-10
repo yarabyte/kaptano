@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageSpinner } from "@/components/dashboard/page-loading";
 
 type Stand = {
   id: string;
@@ -40,6 +41,7 @@ export default function StandsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: "", catalogId: "", eventId: "", active: true });
@@ -49,27 +51,36 @@ export default function StandsPage() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   async function loadStands() {
-    const [standsRes, catalogsRes, eventsRes] = await Promise.all([
-      fetch("/api/stands"),
-      fetch("/api/catalogs"),
-      fetch("/api/events"),
-    ]);
-    const standsData = (await standsRes.json()) as {
-      stands: Stand[];
-      standQuota?: StandQuota;
-    };
-    const catalogsData = (await catalogsRes.json()) as { catalogs: Catalog[] };
-    const eventsData = (await eventsRes.json()) as { events: Event[] };
+    setInitialLoading(true);
+    try {
+      const [standsRes, catalogsRes, eventsRes] = await Promise.all([
+        fetch("/api/stands"),
+        fetch("/api/catalogs"),
+        fetch("/api/events"),
+      ]);
+      const standsData = (await standsRes.json()) as {
+        stands: Stand[];
+        standQuota?: StandQuota;
+      };
+      const catalogsData = (await catalogsRes.json()) as { catalogs: Catalog[] };
+      const eventsData = (await eventsRes.json()) as { events: Event[] };
 
-    setStands(standsData.stands ?? []);
-    setStandQuota(standsData.standQuota ?? null);
-    setCatalogs(catalogsData.catalogs ?? []);
-    setEvents(eventsData.events ?? []);
+      const nextStands = standsData.stands ?? [];
+      setStands(nextStands);
+      setStandQuota(standsData.standQuota ?? null);
+      setCatalogs(catalogsData.catalogs ?? []);
+      setEvents(eventsData.events ?? []);
 
-    for (const stand of standsData.stands ?? []) {
-      const url = `${appUrl}/c/${stand.qrToken}`;
-      const qr = await QRCode.toDataURL(url, { width: 200, margin: 2 });
-      setQrImages((prev) => ({ ...prev, [stand.id]: qr }));
+      const qrEntries = await Promise.all(
+        nextStands.map(async (stand) => {
+          const url = `${appUrl}/c/${stand.qrToken}`;
+          const qr = await QRCode.toDataURL(url, { width: 200, margin: 2 });
+          return [stand.id, qr] as const;
+        })
+      );
+      setQrImages(Object.fromEntries(qrEntries));
+    } finally {
+      setInitialLoading(false);
     }
   }
 
@@ -141,10 +152,14 @@ export default function StandsPage() {
     }
   }
 
+  if (initialLoading) {
+    return <PageSpinner label="Chargement des stands…" />;
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Stands</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Stands</h1>
         <p className="text-muted-foreground">
           Gérez vos stands et QR codes de capture
           {standQuota?.limit !== null && standQuota?.limit !== undefined && (

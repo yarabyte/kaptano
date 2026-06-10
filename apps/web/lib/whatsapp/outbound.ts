@@ -9,6 +9,7 @@ import {
 } from "@kaptano/shared";
 import { decrypt } from "@/lib/crypto";
 import { createSessionWasenderClient } from "@/lib/wasender/create-client";
+import { parseRateLimitHeaders, recordRateLimitSnapshot } from "./rate-limits";
 import { resolveWhatsappCredentials } from "./resolve-session";
 
 const BASE_URL =
@@ -188,9 +189,15 @@ export async function sendOutboundMessage(
           }),
         });
 
+        const snapshot = parseRateLimitHeaders(res.headers);
+        if (snapshot) {
+          void recordRateLimitSnapshot(snapshot).catch(() => undefined);
+        }
+
         const body = (await res.json()) as {
           success?: boolean;
           message?: string;
+          retry_after?: number;
           data?: { msgId?: number | string; message_id?: string };
         };
 

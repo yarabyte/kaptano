@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { effectivePlanTier, usesSharedWhatsapp } from "@kaptano/shared";
 import type { PlanTier, SessionStatus, SubscriptionStatus } from "@kaptano/db";
 import { prisma } from "@/lib/prisma";
@@ -21,43 +22,51 @@ export type ResolvedWhatsappCredentials = {
   effectivePlanTier: PlanTier;
 };
 
-export async function getResolvedWhatsappSession(
-  tenantId: string
-): Promise<ResolvedWhatsappSession> {
-  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
-  const tier = effectivePlanTier(
-    tenant.planTier,
-    tenant.subscriptionStatus,
-    tenant.subscriptionExpiresAt
-  );
+export const getResolvedWhatsappSession = cache(
+  async (tenantId: string): Promise<ResolvedWhatsappSession> => {
+    const [tenant, shared, own] = await Promise.all([
+      prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      prisma.sharedWhatsappSession.findUnique({
+        where: { id: SHARED_WHATSAPP_SESSION_ID },
+      }),
+      prisma.whatsappSession.findUnique({ where: { tenantId } }),
+    ]);
 
-  if (usesSharedWhatsapp(tier)) {
-    const shared = await prisma.sharedWhatsappSession.findUnique({
-      where: { id: SHARED_WHATSAPP_SESSION_ID },
-    });
+    const tier = effectivePlanTier(
+      tenant.planTier,
+      tenant.subscriptionStatus,
+      tenant.subscriptionExpiresAt
+    );
+
+    if (usesSharedWhatsapp(tier)) {
+      return {
+        status: shared?.status ?? "DISCONNECTED",
+        phoneNumber: shared?.phoneNumber ?? null,
+        whatsappMode: "shared",
+        effectivePlanTier: tier,
+      };
+    }
 
     return {
-      status: shared?.status ?? "DISCONNECTED",
-      phoneNumber: shared?.phoneNumber ?? null,
-      whatsappMode: "shared",
+      status: own?.status ?? "DISCONNECTED",
+      phoneNumber: own?.phoneNumber ?? null,
+      whatsappMode: "own",
       effectivePlanTier: tier,
     };
   }
-
-  const own = await prisma.whatsappSession.findUnique({ where: { tenantId } });
-
-  return {
-    status: own?.status ?? "DISCONNECTED",
-    phoneNumber: own?.phoneNumber ?? null,
-    whatsappMode: "own",
-    effectivePlanTier: tier,
-  };
-}
+);
 
 export async function resolveWhatsappCredentials(
   tenantId: string
 ): Promise<ResolvedWhatsappCredentials> {
-  const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+  const [tenant, shared, own] = await Promise.all([
+    prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+    prisma.sharedWhatsappSession.findUnique({
+      where: { id: SHARED_WHATSAPP_SESSION_ID },
+    }),
+    prisma.whatsappSession.findUnique({ where: { tenantId } }),
+  ]);
+
   const tier = effectivePlanTier(
     tenant.planTier,
     tenant.subscriptionStatus,
@@ -65,10 +74,6 @@ export async function resolveWhatsappCredentials(
   );
 
   if (usesSharedWhatsapp(tier)) {
-    const shared = await prisma.sharedWhatsappSession.findUnique({
-      where: { id: SHARED_WHATSAPP_SESSION_ID },
-    });
-
     return {
       apiKeyEncrypted: shared?.apiKeyEncrypted ?? null,
       status: shared?.status ?? "DISCONNECTED",
@@ -77,8 +82,6 @@ export async function resolveWhatsappCredentials(
       effectivePlanTier: tier,
     };
   }
-
-  const own = await prisma.whatsappSession.findUnique({ where: { tenantId } });
 
   return {
     apiKeyEncrypted: own?.apiKeyEncrypted ?? null,
