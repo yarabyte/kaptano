@@ -18,6 +18,7 @@ import {
   waitForWhatsappSendSlot,
 } from "@/lib/whatsapp/rate-limits";
 import { resolveWhatsappCredentials } from "@/lib/whatsapp/resolve-session";
+import { scheduleMessageJobStatusSync } from "@/lib/whatsapp/sync-message-status";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -162,6 +163,7 @@ export async function processMessageJob(messageJobId: string): Promise<void> {
         lastError: null,
       },
     });
+    scheduleMessageJobStatusSync(job.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inconnue";
     const attempts = job.attempts + 1;

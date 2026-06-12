@@ -259,6 +259,7 @@ model MessageJob {
   dispatchBatch     DispatchBatch? @relation(fields: [dispatchBatchId], references: [id], onDelete: SetNull)
   status            MessageStatus  @default(QUEUED)
   wasenderMessageId String?
+  wasenderKeyId     String?
   scheduledFor      DateTime
   attempts          Int            @default(0)
   lastError         String?
@@ -272,6 +273,7 @@ model MessageJob {
 
   @@index([leadId, createdAt])
   @@index([tenantId, status])
+  @@index([wasenderKeyId])
   @@index([dispatchBatchId])
   @@index([scheduledFor])
 }

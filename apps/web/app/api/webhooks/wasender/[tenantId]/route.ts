@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { MessageStatus, SessionStatus } from "@kaptano/db";
+import type { SessionStatus } from "@kaptano/db";
 import {
   dispatchWebhookEvent,
   verifyWasenderWebhookSignature,
@@ -9,51 +9,9 @@ import {
 } from "wasenderapi";
 import { prisma } from "@/lib/prisma";
 import { handleMessageSentWebhook } from "@/lib/whatsapp/poll-results";
+import { processWasenderMessageStatusEvents } from "@/lib/whatsapp/webhook-message-status";
 
 export const dynamic = "force-dynamic";
-
-async function updateMessageJobStatus(
-  tenantId: string,
-  messageId: string,
-  updateStatus: string | undefined
-): Promise<void> {
-  if (!updateStatus) return;
-
-  const statusMap: Record<string, MessageStatus> = {
-    delivered: "DELIVERED",
-    read: "READ",
-    played: "READ",
-    sent: "SENT",
-    failed: "FAILED",
-    error: "FAILED",
-    pending: "SENT",
-    in_progress: "SENT",
-  };
-
-  const mapped = statusMap[updateStatus.toLowerCase()];
-  if (!mapped) return;
-
-  const updateData: {
-    status: MessageStatus;
-    deliveredAt?: Date;
-    readAt?: Date;
-  } = { status: mapped };
-
-  if (updateStatus.toLowerCase() === "delivered") {
-    updateData.deliveredAt = new Date();
-  }
-  if (
-    updateStatus.toLowerCase() === "read" ||
-    updateStatus.toLowerCase() === "played"
-  ) {
-    updateData.readAt = new Date();
-  }
-
-  await prisma.messageJob.updateMany({
-    where: { wasenderMessageId: messageId, tenantId },
-    data: updateData,
-  });
-}
 
 export async function POST(
   request: Request,
@@ -92,22 +50,13 @@ export async function POST(
             data as { key?: { id?: string; remoteJid?: string; fromMe?: boolean } },
             tenantId
           );
-          const messageId = data.key?.id;
-          const updateStatus = data.status;
-          if (messageId) {
-            await updateMessageJobStatus(tenantId, messageId, updateStatus);
-          }
         }
+        await processWasenderMessageStatusEvents(event, tenantId);
         break;
       }
-      case WasenderWebhookEventType.MessagesUpdate: {
-        const entries = Array.isArray(event.data) ? event.data : [event.data];
-        for (const entry of entries) {
-          const messageId = entry.key?.id;
-          const updateStatus = entry.update?.status;
-          if (!messageId || !updateStatus) continue;
-          await updateMessageJobStatus(tenantId, messageId, updateStatus);
-        }
+      case WasenderWebhookEventType.MessagesUpdate:
+      case WasenderWebhookEventType.MessageReceiptUpdate: {
+        await processWasenderMessageStatusEvents(event, tenantId);
         break;
       }
       case WasenderWebhookEventType.SessionStatus: {

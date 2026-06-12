@@ -43,6 +43,7 @@ export const WASENDER_WEBHOOK_EVENTS = [
   "session.status",
   "message.sent",
   "messages.update",
+  "message-receipt.update",
   "qrcode.updated",
 ] as const;
 

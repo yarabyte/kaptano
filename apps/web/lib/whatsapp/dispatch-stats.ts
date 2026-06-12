@@ -174,6 +174,15 @@ export async function getLeadWhatsAppSummary(
 }
 
 export async function getTenantSendStats(tenantId: string) {
+  try {
+    const { syncRecentMessageStatuses } = await import(
+      "@/lib/whatsapp/sync-message-status"
+    );
+    await syncRecentMessageStatuses(tenantId);
+  } catch (err) {
+    console.error("[dispatch-stats] status sync failed", err);
+  }
+
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 

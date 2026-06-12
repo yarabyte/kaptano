@@ -133,7 +133,7 @@ export class WasenderClient {
       );
       const connectData = connectResponse.data;
 
-      if (connectData.status === "CONNECTED") {
+      if (connectData.status === "connected") {
         return { qr: null, alreadyConnected: true };
       }
 

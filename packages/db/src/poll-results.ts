@@ -42,15 +42,10 @@ export async function handleMessageSentWebhook(
     orderBy: { sentAt: "desc" },
   });
 
-  if (!job || job.wasenderMessageId === key.id) return;
+  if (!job || job.wasenderKeyId === key.id) return;
 
-  const storedId = job.wasenderMessageId ?? "";
-  const isNumericApiId = /^\d+$/.test(storedId);
-
-  if (isNumericApiId || storedId !== key.id) {
-    await prisma.messageJob.update({
-      where: { id: job.id },
-      data: { wasenderMessageId: key.id },
-    });
-  }
+  await prisma.messageJob.update({
+    where: { id: job.id },
+    data: { wasenderKeyId: key.id },
+  });
 }

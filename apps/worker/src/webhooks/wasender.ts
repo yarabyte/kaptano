@@ -1,5 +1,9 @@
 import type { Request, Response } from "express";
-import type { SessionStatus, MessageStatus } from "@kaptano/db";
+import type { SessionStatus } from "@kaptano/db";
+import {
+  applyWasenderWebhookMessageStatus,
+  handleMessageSentWebhook,
+} from "@kaptano/db";
 import {
   dispatchWebhookEvent,
   verifyWasenderWebhookSignature,
@@ -7,10 +11,48 @@ import {
   WasenderAPIError,
   WEBHOOK_SIGNATURE_HEADER,
 } from "wasenderapi";
-import { handleMessageSentWebhook } from "@kaptano/db";
 import { prisma } from "../lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "../whatsapp/resolveSession";
 import { logger } from "../lib/logger";
+
+function asArray<T>(data: T | T[]): T[] {
+  return Array.isArray(data) ? data : [data];
+}
+
+async function processMessageStatusEvents(
+  event: ReturnType<typeof dispatchWebhookEvent>,
+  tenantId?: string
+): Promise<void> {
+  switch (event.event) {
+    case WasenderWebhookEventType.MessageSent: {
+      if (Array.isArray(event.data)) break;
+      const messageId = event.data.key?.id;
+      const updateStatus = event.data.status;
+      if (messageId) {
+        await applyWasenderWebhookMessageStatus(tenantId, messageId, updateStatus);
+      }
+      break;
+    }
+    case WasenderWebhookEventType.MessagesUpdate: {
+      for (const entry of asArray(event.data)) {
+        const messageId = entry.key?.id;
+        const updateStatus = entry.update?.status;
+        if (!messageId || updateStatus == null) continue;
+        await applyWasenderWebhookMessageStatus(tenantId, messageId, updateStatus);
+      }
+      break;
+    }
+    case WasenderWebhookEventType.MessageReceiptUpdate: {
+      for (const entry of asArray(event.data)) {
+        const messageId = entry.key?.id;
+        const updateStatus = entry.receipt?.status;
+        if (!messageId || !updateStatus) continue;
+        await applyWasenderWebhookMessageStatus(tenantId, messageId, updateStatus);
+      }
+      break;
+    }
+  }
+}
 
 export async function handleWasenderWebhook(
   req: Request,
@@ -76,68 +118,18 @@ export async function handleWasenderWebhook(
         if (!Array.isArray(event.data)) {
           await handleMessageSentWebhook(event.data, tenantId);
         }
-        const messageId = event.data.key?.id;
-        const updateStatus = event.data.status;
-        if (!messageId) break;
-        await updateMessageJobStatus(tenantId, messageId, updateStatus);
+        await processMessageStatusEvents(event, tenantId);
         break;
       }
-      case WasenderWebhookEventType.MessagesUpdate: {
-        const entries = Array.isArray(event.data) ? event.data : [event.data];
-        for (const entry of entries) {
-          const messageId = entry.key?.id;
-          const updateStatus = entry.update?.status;
-          if (!messageId || !updateStatus) continue;
-          await updateMessageJobStatus(tenantId, messageId, updateStatus);
-        }
+      case WasenderWebhookEventType.MessagesUpdate:
+      case WasenderWebhookEventType.MessageReceiptUpdate: {
+        await processMessageStatusEvents(event, tenantId);
         break;
       }
     }
   } catch (err) {
     logger.error({ err, tenantId, event: event.event }, "Webhook processing error");
   }
-}
-
-async function updateMessageJobStatus(
-  tenantId: string,
-  messageId: string,
-  updateStatus: string | undefined
-): Promise<void> {
-  if (!updateStatus) return;
-
-  const statusMap: Record<string, MessageStatus> = {
-    delivered: "DELIVERED",
-    read: "READ",
-    played: "READ",
-    sent: "SENT",
-    failed: "FAILED",
-    error: "FAILED",
-    pending: "SENT",
-    in_progress: "SENT",
-  };
-
-  const mapped = statusMap[updateStatus.toLowerCase()];
-  if (!mapped) return;
-
-  const updateData: {
-    status: MessageStatus;
-    deliveredAt?: Date;
-    readAt?: Date;
-  } = { status: mapped };
-
-  if (updateStatus.toLowerCase() === "delivered") {
-    updateData.deliveredAt = new Date();
-  }
-  if (updateStatus.toLowerCase() === "read" || updateStatus.toLowerCase() === "played") {
-    updateData.readAt = new Date();
-  }
-
-  await prisma.messageJob.updateMany({
-    where: tenantId
-      ? { wasenderMessageId: messageId, tenantId }
-      : { wasenderMessageId: messageId },
-    data: updateData,
-  });
 }
 
 export async function handleSharedWasenderWebhook(
@@ -198,20 +190,12 @@ export async function handleSharedWasenderWebhook(
         if (!Array.isArray(event.data)) {
           await handleMessageSentWebhook(event.data);
         }
-        const messageId = event.data.key?.id;
-        const updateStatus = event.data.status;
-        if (!messageId) break;
-        await updateMessageJobStatus("", messageId, updateStatus);
+        await processMessageStatusEvents(event);
         break;
       }
-      case WasenderWebhookEventType.MessagesUpdate: {
-        const entries = Array.isArray(event.data) ? event.data : [event.data];
-        for (const entry of entries) {
-          const messageId = entry.key?.id;
-          const updateStatus = entry.update?.status;
-          if (!messageId || !updateStatus) continue;
-          await updateMessageJobStatus("", messageId, updateStatus);
-        }
+      case WasenderWebhookEventType.MessagesUpdate:
+      case WasenderWebhookEventType.MessageReceiptUpdate: {
+        await processMessageStatusEvents(event);
         break;
       }
     }

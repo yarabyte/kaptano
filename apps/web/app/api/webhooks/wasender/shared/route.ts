@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
 import { handleMessageSentWebhook } from "@/lib/whatsapp/poll-results";
+import { processWasenderMessageStatusEvents } from "@/lib/whatsapp/webhook-message-status";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,12 @@ export async function POST(request: Request) {
         if (!Array.isArray(data)) {
           await handleMessageSentWebhook(data as { key?: { id?: string; remoteJid?: string; fromMe?: boolean } });
         }
+        await processWasenderMessageStatusEvents(event);
+        break;
+      }
+      case WasenderWebhookEventType.MessagesUpdate:
+      case WasenderWebhookEventType.MessageReceiptUpdate: {
+        await processWasenderMessageStatusEvents(event);
         break;
       }
       case WasenderWebhookEventType.SessionStatus: {
