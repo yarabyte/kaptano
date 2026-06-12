@@ -6,15 +6,10 @@ import {
   WasenderWebhookEventType,
   WasenderAPIError,
   WEBHOOK_SIGNATURE_HEADER,
-  type PollResultsData,
 } from "wasenderapi";
 import { prisma } from "@/lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
-import { handleSharedIncomingMessageWebhookEvent } from "@/lib/whatsapp/handle-incoming-webhook";
-import {
-  handleMessageSentWebhook,
-  handlePollResultsWebhook,
-} from "@/lib/whatsapp/poll-results";
+import { handleMessageSentWebhook } from "@/lib/whatsapp/poll-results";
 
 export const dynamic = "force-dynamic";
 
@@ -43,24 +38,11 @@ export async function POST(request: Request) {
 
   try {
     switch (event.event) {
-      case WasenderWebhookEventType.PollResults: {
-        const data = event.data as PollResultsData;
-        if (!Array.isArray(data)) {
-          await handlePollResultsWebhook(data, event.timestamp);
-        }
-        break;
-      }
       case WasenderWebhookEventType.MessageSent: {
         const data = event.data;
         if (!Array.isArray(data)) {
           await handleMessageSentWebhook(data as { key?: { id?: string; remoteJid?: string; fromMe?: boolean } });
         }
-        break;
-      }
-      case WasenderWebhookEventType.MessagesReceived:
-      case WasenderWebhookEventType.MessagesPersonalReceived:
-      case WasenderWebhookEventType.MessagesUpsert: {
-        await handleSharedIncomingMessageWebhookEvent(event.data);
         break;
       }
       case WasenderWebhookEventType.SessionStatus: {

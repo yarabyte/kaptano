@@ -1,12 +1,2 @@
-export type {
-  MessageKey,
-  PollResultEntry,
-  PollResultsData,
-  PollSnapshot,
-} from "@kaptano/db";
-export {
-  getTenantPollResults,
-  handleMessageSentWebhook,
-  handlePollResultsWebhook,
-  jidToPhone,
-} from "@kaptano/db";
+export type { MessageKey, PollSnapshot } from "@kaptano/db";
+export { handleMessageSentWebhook, jidToPhone } from "@kaptano/db";

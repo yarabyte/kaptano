@@ -63,18 +63,6 @@ enum DispatchBatchStatus {
   FAILED
 }
 
-enum IncomingWhatsappMessageType {
-  TEXT
-  IMAGE
-  VIDEO
-  AUDIO
-  DOCUMENT
-  STICKER
-  LOCATION
-  CONTACT
-  UNKNOWN
-}
-
 enum WasenderRatePlanMode {
   ACCOUNT_PROTECTION
   PAID
@@ -105,10 +93,9 @@ model Tenant {
   catalogs        Catalog[]
   leads           Lead[]
   whatsappSession WhatsappSession?
-  messageJobs              MessageJob[]
-  dispatchBatches          DispatchBatch[]
-  incomingWhatsappMessages IncomingWhatsappMessage[]
-  usageRecords             UsageRecord[]
+  messageJobs     MessageJob[]
+  dispatchBatches DispatchBatch[]
+  usageRecords    UsageRecord[]
   payments                 Payment[]
 }
 
@@ -197,8 +184,7 @@ model Lead {
   clientUuid     String?
   capturedAt     DateTime   @default(now())
 
-  messageJobs              MessageJob[]
-  incomingWhatsappMessages IncomingWhatsappMessage[]
+  messageJobs MessageJob[]
 
   @@unique([tenantId, whatsappNumber])
   @@unique([tenantId, clientUuid])
@@ -282,38 +268,12 @@ model MessageJob {
   catalogClickedAt  DateTime?
   isPoll            Boolean        @default(false)
   pollSnapshot      Json?
-  pollResults       Json?
-  pollResultsAt     DateTime?
   createdAt         DateTime       @default(now())
 
   @@index([leadId, createdAt])
   @@index([tenantId, status])
   @@index([dispatchBatchId])
   @@index([scheduledFor])
-}
-
-model IncomingWhatsappMessage {
-  id                String                      @id @default(cuid())
-  tenantId          String
-  tenant            Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  leadId            String?
-  lead              Lead?                       @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  wasenderMessageId String
-  remoteJid         String
-  fromMe            Boolean                     @default(false)
-  messageType       IncomingWhatsappMessageType @default(TEXT)
-  textBody          String?
-  mediaMimeType     String?
-  mediaFileName     String?
-  mediaStoragePath  String?
-  mediaPublicUrl    String?
-  pushName          String?
-  receivedAt        DateTime                    @default(now())
-  createdAt         DateTime                    @default(now())
-
-  @@unique([tenantId, wasenderMessageId])
-  @@index([tenantId, receivedAt])
-  @@index([leadId, receivedAt])
 }
 
 enum PaymentStatus {

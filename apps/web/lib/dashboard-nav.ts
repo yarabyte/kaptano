@@ -8,7 +8,6 @@ export type DashboardNavIcon =
   | "qr-code"
   | "file-text"
   | "message-circle"
-  | "inbox"
   | "credit-card";
 
 export type DashboardNavConfigItem = {
@@ -25,7 +24,6 @@ export const dashboardNavItems: DashboardNavConfigItem[] = [
   { href: "/dashboard/events", label: "Événements", icon: "calendar", roles: ["EXHIBITOR_ADMIN"] },
   { href: "/dashboard/stands", label: "Stands", icon: "qr-code", roles: ["EXHIBITOR_ADMIN"] },
   { href: "/dashboard/whatsapp", label: "WhatsApp", icon: "message-circle", roles: ["EXHIBITOR_ADMIN"] },
-  { href: "/dashboard/replies", label: "Réponses", icon: "inbox", roles: ["EXHIBITOR_ADMIN"] },
   { href: "/dashboard/team", label: "Équipe", icon: "users", roles: ["EXHIBITOR_ADMIN"] },
   { href: "/dashboard/billing", label: "Facturation", icon: "credit-card", roles: ["EXHIBITOR_ADMIN"] },
 ];

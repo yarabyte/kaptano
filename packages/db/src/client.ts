@@ -32,4 +32,3 @@ export const prisma = getPrismaClient();
 export * from "@prisma/client";
 export * from "./poll-results";
 export * from "./lead-message-quota";
-export * from "./incoming-messages";

@@ -43,11 +43,7 @@ export const WASENDER_WEBHOOK_EVENTS = [
   "session.status",
   "message.sent",
   "messages.update",
-  "messages.upsert",
-  "messages.received",
-  "messages-personal.received",
   "qrcode.updated",
-  "poll.results",
 ] as const;
 
 export const WHATSAPP_MESSAGE_TEMPLATE =

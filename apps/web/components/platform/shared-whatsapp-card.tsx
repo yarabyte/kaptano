@@ -59,7 +59,7 @@ export function SharedWhatsappCard() {
         setError(data.error ?? "Échec de la synchronisation");
         return;
       }
-      setSyncOk("Webhooks synchronisés (messages entrants + sondages).");
+      setSyncOk("Webhooks synchronisés.");
     } catch {
       setError("Impossible de synchroniser les webhooks.");
     } finally {

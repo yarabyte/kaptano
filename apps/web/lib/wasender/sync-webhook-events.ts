@@ -19,8 +19,7 @@ export async function syncWasenderWebhookEvents(
       webhook_url: webhookUrl,
       webhook_enabled: true,
       webhook_events: [...WASENDER_WEBHOOK_EVENTS],
-      read_incoming_messages: true,
-    } as Parameters<typeof client.updateWhatsAppSession>[1]);
+    });
   } catch (err) {
     if (err instanceof WasenderAPIError) {
       throw new Error(`WhatsApp: ${err.apiMessage}`);

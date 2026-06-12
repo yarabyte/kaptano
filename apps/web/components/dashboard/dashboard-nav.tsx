@@ -10,7 +10,6 @@ import {
   QrCode,
   FileText,
   MessageCircle,
-  Inbox,
   CreditCard,
   UserPlus,
   Calendar,
@@ -34,7 +33,6 @@ const iconMap: Record<DashboardNavIcon, LucideIcon> = {
   "qr-code": QrCode,
   "file-text": FileText,
   "message-circle": MessageCircle,
-  inbox: Inbox,
   "credit-card": CreditCard,
 };
 

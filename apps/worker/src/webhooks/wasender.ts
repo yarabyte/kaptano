@@ -7,13 +7,7 @@ import {
   WasenderAPIError,
   WEBHOOK_SIGNATURE_HEADER,
 } from "wasenderapi";
-import {
-  findTenantIdByIncomingKey,
-  handleIncomingWhatsappWebhook,
-  handleMessageSentWebhook,
-  handlePollResultsWebhook,
-  normalizeIncomingWebhookData,
-} from "@kaptano/db";
+import { handleMessageSentWebhook } from "@kaptano/db";
 import { prisma } from "../lib/prisma";
 import { SHARED_WHATSAPP_SESSION_ID } from "../whatsapp/resolveSession";
 import { logger } from "../lib/logger";
@@ -88,12 +82,6 @@ export async function handleWasenderWebhook(
         await updateMessageJobStatus(tenantId, messageId, updateStatus);
         break;
       }
-      case WasenderWebhookEventType.PollResults: {
-        if (!Array.isArray(event.data)) {
-          await handlePollResultsWebhook(event.data, event.timestamp, tenantId);
-        }
-        break;
-      }
       case WasenderWebhookEventType.MessagesUpdate: {
         const entries = Array.isArray(event.data) ? event.data : [event.data];
         for (const entry of entries) {
@@ -102,12 +90,6 @@ export async function handleWasenderWebhook(
           if (!messageId || !updateStatus) continue;
           await updateMessageJobStatus(tenantId, messageId, updateStatus);
         }
-        break;
-      }
-      case WasenderWebhookEventType.MessagesReceived:
-      case WasenderWebhookEventType.MessagesPersonalReceived:
-      case WasenderWebhookEventType.MessagesUpsert: {
-        await handleIncomingWhatsappWebhook(event.data, tenantId);
         break;
       }
     }
@@ -173,7 +155,7 @@ export async function handleSharedWasenderWebhook(
 
   const signature = req.headers[WEBHOOK_SIGNATURE_HEADER] as string | undefined;
   if (!verifyWasenderWebhookSignature(signature, session.webhookSecret)) {
-    res.status(401).json({ error: "Invalid signature" });
+    res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
@@ -222,12 +204,6 @@ export async function handleSharedWasenderWebhook(
         await updateMessageJobStatus("", messageId, updateStatus);
         break;
       }
-      case WasenderWebhookEventType.PollResults: {
-        if (!Array.isArray(event.data)) {
-          await handlePollResultsWebhook(event.data, event.timestamp);
-        }
-        break;
-      }
       case WasenderWebhookEventType.MessagesUpdate: {
         const entries = Array.isArray(event.data) ? event.data : [event.data];
         for (const entry of entries) {
@@ -235,18 +211,6 @@ export async function handleSharedWasenderWebhook(
           const updateStatus = entry.update?.status;
           if (!messageId || !updateStatus) continue;
           await updateMessageJobStatus("", messageId, updateStatus);
-        }
-        break;
-      }
-      case WasenderWebhookEventType.MessagesReceived:
-      case WasenderWebhookEventType.MessagesPersonalReceived:
-      case WasenderWebhookEventType.MessagesUpsert: {
-        const normalized = normalizeIncomingWebhookData(event.data);
-        if (normalized) {
-          const tenantId = await findTenantIdByIncomingKey(normalized.key);
-          if (tenantId) {
-            await handleIncomingWhatsappWebhook(event.data, tenantId);
-          }
         }
         break;
       }
