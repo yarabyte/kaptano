@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import { CookieConsent } from "@/components/marketing/cookie-consent";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -46,6 +47,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className={`${inter.variable} ${plusJakarta.variable} font-sans antialiased`}>
+        <TopProgressBar />
         <ServiceWorkerRegister />
         {children}
         <CookieConsent />

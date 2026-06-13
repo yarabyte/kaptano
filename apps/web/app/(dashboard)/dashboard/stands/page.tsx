@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import QRCode from "qrcode";
 import { Plus, ExternalLink, Pencil, Download, Loader2, AlertCircle } from "lucide-react";
-import { downloadStandQrPdf } from "@/lib/stands/qr-pdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +69,7 @@ export default function StandsPage() {
       setCatalogs(catalogsData.catalogs ?? []);
       setEvents(eventsData.events ?? []);
 
+      const { default: QRCode } = await import("qrcode");
       const qrEntries = await Promise.all(
         nextStands.map(async (stand) => {
           const url = `${appUrl}/c/${stand.qrToken}`;
@@ -142,6 +141,7 @@ export default function StandsPage() {
   async function handleDownloadPdf(stand: Stand) {
     setDownloadingId(stand.id);
     try {
+      const { downloadStandQrPdf } = await import("@/lib/stands/qr-pdf");
       await downloadStandQrPdf({
         standName: stand.name,
         eventName: stand.event?.name,
