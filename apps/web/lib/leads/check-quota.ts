@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { PLAN_QUOTAS, effectivePlanTier, getStandLimit } from "@kaptano/shared";
 import { prisma } from "@/lib/prisma";
+import { getCachedTenant } from "@/lib/tenant";
 import { getCurrentPeriod } from "@/lib/utils";
 import type { PlanTier, SubscriptionStatus } from "@kaptano/db";
 
@@ -92,7 +93,7 @@ export async function assertLeadQuota(tenantId: string): Promise<void> {
 export const getTenantUsageSummary = cache(async (tenantId: string) => {
   const period = getCurrentPeriod();
   const [tenant, usage] = await Promise.all([
-    prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+    getCachedTenant(tenantId),
     prisma.usageRecord.findUnique({
       where: { tenantId_period: { tenantId, period } },
     }),

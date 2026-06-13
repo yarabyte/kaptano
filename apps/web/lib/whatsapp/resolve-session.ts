@@ -2,6 +2,7 @@ import { cache } from "react";
 import { effectivePlanTier, usesSharedWhatsapp } from "@kaptano/shared";
 import type { PlanTier, SessionStatus, SubscriptionStatus } from "@kaptano/db";
 import { prisma } from "@/lib/prisma";
+import { getCachedTenant } from "@/lib/tenant";
 import { SHARED_WHATSAPP_SESSION_ID } from "./constants";
 
 export { SHARED_WHATSAPP_SESSION_ID };
@@ -26,7 +27,7 @@ export type ResolvedWhatsappCredentials = {
 export const getResolvedWhatsappSession = cache(
   async (tenantId: string): Promise<ResolvedWhatsappSession> => {
     const [tenant, shared, own] = await Promise.all([
-      prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
+      getCachedTenant(tenantId),
       prisma.sharedWhatsappSession.findUnique({
         where: { id: SHARED_WHATSAPP_SESSION_ID },
       }),
