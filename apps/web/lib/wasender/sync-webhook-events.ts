@@ -1,6 +1,7 @@
 import { WASENDER_WEBHOOK_EVENTS } from "@kaptano/shared";
 import { WasenderAPIError } from "wasenderapi";
 import { createAccountWasenderClient } from "./create-client";
+import { SharedWhatsappApiError } from "./shared-session";
 
 const ACCOUNT_TOKEN = process.env.WASENDER_ACCOUNT_TOKEN ?? "";
 
@@ -22,7 +23,7 @@ export async function syncWasenderWebhookEvents(
     });
   } catch (err) {
     if (err instanceof WasenderAPIError) {
-      throw new Error(`WhatsApp: ${err.apiMessage}`);
+      throw new SharedWhatsappApiError(`WhatsApp: ${err.apiMessage}`, err.statusCode);
     }
     throw err;
   }

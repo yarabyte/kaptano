@@ -32,17 +32,36 @@ function getAccountClient() {
   return createAccountWasenderClient(ACCOUNT_TOKEN);
 }
 
+export class SharedWhatsappApiError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode?: number
+  ) {
+    super(message);
+    this.name = "SharedWhatsappApiError";
+  }
+}
+
+/**
+ * Vrai si l'erreur indique que la session n'existe plus côté wasender
+ * (supprimée/expirée). Permet de recréer automatiquement la session.
+ */
+export function isSharedSessionNotFound(err: unknown): boolean {
+  return err instanceof SharedWhatsappApiError && err.statusCode === 404;
+}
+
 function handleError(err: unknown): never {
   if (err instanceof WasenderAPIError) {
     if (
       err.statusCode === 401 &&
       err.apiMessage.toLowerCase().includes("personal access token")
     ) {
-      throw new Error(
-        "Token API WhatsApp invalide ou expiré. Vérifiez la configuration du compte plateforme."
+      throw new SharedWhatsappApiError(
+        "Token API WhatsApp invalide ou expiré. Vérifiez la configuration du compte plateforme.",
+        401
       );
     }
-    throw new Error(`WhatsApp: ${err.apiMessage}`);
+    throw new SharedWhatsappApiError(`WhatsApp: ${err.apiMessage}`, err.statusCode);
   }
   throw err;
 }

@@ -7,6 +7,7 @@ import {
   connectAndGetSharedSessionQr,
   createSharedWhatsappSession,
   getSharedWebhookUrl,
+  isSharedSessionNotFound,
 } from "@/lib/wasender/shared-session";
 import { syncWasenderWebhookEvents } from "@/lib/wasender/sync-webhook-events";
 import { SHARED_WHATSAPP_SESSION_ID } from "@/lib/whatsapp/resolve-session";
@@ -51,15 +52,26 @@ export async function POST(request: Request) {
     let wasenderSessionId = existing?.wasenderSessionId ?? null;
     let createResult: Awaited<ReturnType<typeof createSharedWhatsappSession>> | null =
       null;
+    let connection: Awaited<ReturnType<typeof connectAndGetSharedSessionQr>> | null =
+      null;
 
-    if (!wasenderSessionId) {
-      createResult = await createSharedWhatsappSession(webhookUrl, phoneNumber);
-      wasenderSessionId = createResult.id;
-    } else {
-      await syncWasenderWebhookEvents(wasenderSessionId, webhookUrl);
+    if (wasenderSessionId) {
+      try {
+        await syncWasenderWebhookEvents(wasenderSessionId, webhookUrl);
+        connection = await connectAndGetSharedSessionQr(wasenderSessionId);
+      } catch (err) {
+        if (!isSharedSessionNotFound(err)) throw err;
+        // La session stockée n'existe plus côté wasender (supprimée/expirée) :
+        // on repart sur une nouvelle session ci-dessous.
+        wasenderSessionId = null;
+      }
     }
 
-    const connection = await connectAndGetSharedSessionQr(wasenderSessionId);
+    if (!connection) {
+      createResult = await createSharedWhatsappSession(webhookUrl, phoneNumber);
+      wasenderSessionId = createResult.id;
+      connection = await connectAndGetSharedSessionQr(wasenderSessionId);
+    }
 
     const dbStatus: SessionStatus = connection.alreadyConnected
       ? "CONNECTED"
